@@ -1,32 +1,43 @@
-from evennia.utils import repeat, unrepeat
-from .combat_base import (
-   CombatActionAttack,
-   CombatActionHold,
-   CombatActionStunt,
-   CombatActionUseItem,
-   CombatActionWield,
-   EvAdventureCombatBaseHandler,
+"""
+SUMUD Twitch-based combat
+
+This implements a 'twitch' (aka DIKU or other traditional muds) style of MUD combat.
+
+----
+
+"""
+
+from evennia import AttributeProperty, CmdSet, default_cmds
+from evennia.commands.command import Command, InterruptCommand
+from evennia.utils.utils import (
+    display_len,
+    inherits_from,
+    list_to_string,
+    pad,
+    repeat,
+    unrepeat,
 )
-from .combat_base import EvAdventureCombatBaseHandler
-from typeclasses.characters import Character, MobCharacter
-from evennia.utils import inherits_from
-from evennia import AttributeProperty
-from evennia import Command
-from evennia import InterruptCommand 
-from evennia.contrib.tutorials.evadventure.enums import ABILITY_REVERSE_MAP
-from evennia import CmdSet
-from evennia import default_cmds
 
-class EvAdventureCombatTwitchHandler(EvAdventureCombatBaseHandler):
-    """
-    This is created on the combatant when combat starts. It tracks only 
-    the combatant's side of the combat and handles when the next action 
-    will happen.
- 
-    """
-    advantage_against = AttributeProperty(dict) 
-    disadvantage_against = AttributeProperty(dict)
+from world.character.characters import SUCharacter
+from world.combat.combat_base import (
+    CombatActionAttack,
+    CombatActionHold,
+    CombatActionStunt,
+    CombatActionUseItem,
+    CombatActionWield,
+    SUCombatBaseHandler,
+)
+from world.utils.enums import ABILITY_REVERSE_MAP
 
+class SUCombatTwitchHandler(SUCombatBaseHandler):
+    """
+    This is created on the combatant when combat starts. It tracks only the combatants
+    side of the combat and handles when the next action will happen.
+
+
+    """
+
+    # fixed properties
     action_classes = {
         "hold": CombatActionHold,
         "attack": CombatActionAttack,
@@ -35,32 +46,53 @@ class EvAdventureCombatTwitchHandler(EvAdventureCombatBaseHandler):
         "wield": CombatActionWield,
     }
 
-    action_dict = AttributeProperty(dict, autocreate=False)
-    current_ticker_ref = AttributeProperty(None, autocreate=False)
+    # dynamic properties
+
+    advantage_against = AttributeProperty(dict)
+    disadvantage_against = AttributeProperty(dict)
+
+    action_dict = AttributeProperty(dict)
     fallback_action_dict = AttributeProperty({"key": "hold", "dt": 0})
 
-    def at_init(self): 
-        self.obj.cmdset.add(TwitchLookCmdSet, persistent=False)
-        
+    # stores the current ticker reference, so we can manipulate it later
+    current_ticker_ref = AttributeProperty(None)
 
-    def msg(self, message, broadcast=True):
-        """See EvAdventureCombatBaseHandler.msg"""
-        super().msg(message, combatant=self.obj, 
-                    broadcast=broadcast, location=self.obj.location)
+    def msg(self, message, broadcast=True, **kwargs):
+        """
+        Central place for sending messages to combatants. This allows
+        for adding any combat-specific text-decoration in one place.
+
+        Args:
+            message (str): The message to send.
+            combatant (Object): The 'You' in the message, if any.
+            broadcast (bool): If `False`, `combatant` must be included and
+                will be the only one to see the message. If `True`, send to
+                everyone in the location.
+            location (Object, optional): If given, use this as the location to
+                send broadcast messages to. If not, use `self.obj` as that
+                location.
+
+        Notes:
+            If `combatant` is given, use `$You/you()` markup to create
+            a message that looks different depending on who sees it. Use
+            `$You(combatant_key)` to refer to other combatants.
+        """
+        super().msg(message, combatant=self.obj, broadcast=broadcast, location=self.obj.location)
+
+    def at_init(self):
+        self.obj.cmdset.add(TwitchLookCmdSet, persistent=False)
 
     def get_sides(self, combatant):
         """
-        Get a listing of the two 'sides' of this combat, from the 
-        perspective of the provided combatant. The sides don't need 
-        to be balanced.
+        Get a listing of the two 'sides' of this combat, from the perspective of the provided
+        combatant. The sides don't need to be balanced.
 
         Args:
-            combatant (Character or NPC): The basis for the sides.
-             
+            combatant (Character or NPC): The one whose sides are to determined.
+
         Returns:
-            tuple: A tuple of lists `(allies, enemies)`, from the 
-                perspective of `combatant`. Note that combatant itself 
-                is not included in either of these.
+            tuple: A tuple of lists `(allies, enemies)`, from the perspective of `combatant`.
+                Note that combatant itself is not included in either of these.
 
         """
         # get all entities involved in combat by looking up their combathandlers
@@ -71,38 +103,70 @@ class EvAdventureCombatTwitchHandler(EvAdventureCombatBaseHandler):
         ]
         location = self.obj.location
 
-        #if hasattr(location, "allow_pvp") and location.allow_pvp:
+        if hasattr(location, "allow_pvp") and location.allow_pvp:
             # in pvp, everyone else is an enemy
-        #    allies = [combatant]
-        #    enemies = [comb for comb in combatants if comb != combatant]
-        #else:
-            # otherwise, enemies/allies depend on who combatant is
-        pcs = [comb for comb in combatants if inherits_from(comb, MobCharacter)]
-        npcs = [comb for comb in combatants if comb not in pcs]
-        if combatant in pcs:
-            # combatant is a PC, so NPCs are all enemies
-            allies = pcs
-            enemies = npcs
+            allies = [combatant]
+            enemies = [comb for comb in combatants if comb != combatant]
         else:
-            # combatant is an NPC, so PCs are all enemies
-            allies = npcs
-            enemies = pcs
+            # otherwise, enemies/allies depend on who combatant is
+            pcs = [comb for comb in combatants if inherits_from(comb, SUCharacter)]
+            npcs = [comb for comb in combatants if comb not in pcs]
+            if combatant in pcs:
+                # combatant is a PC, so NPCs are all enemies
+                allies = pcs
+                enemies = npcs
+            else:
+                # combatant is an NPC, so PCs are all enemies
+                allies = npcs
+                enemies = pcs
         return allies, enemies
 
     def give_advantage(self, recipient, target):
-        """Let a recipient gain advantage against the target."""
+        """
+        Let a benefiter gain advantage against the target.
+
+        Args:
+            recipient (Character or NPC): The one to gain the advantage. This may or may not
+                be the same entity that creates the advantage in the first place.
+            target (Character or NPC): The one against which the target gains advantage. This
+                could (in principle) be the same as the benefiter (e.g. gaining advantage on
+                some future boost)
+
+        """
         self.advantage_against[target] = True
 
     def give_disadvantage(self, recipient, target):
-        """Let an affected party gain disadvantage against a target."""
+        """
+        Let an affected party gain disadvantage against a target.
+
+        Args:
+            recipient (Character or NPC): The one to get the disadvantage.
+            target (Character or NPC): The one against which the target gains disadvantage, usually
+                an enemy.
+
+        """
         self.disadvantage_against[target] = True
 
     def has_advantage(self, combatant, target):
-        """Check if the combatant has advantage against a target."""
+        """
+        Check if a given combatant has advantage against a target.
+
+        Args:
+            combatant (Character or NPC): The one to check if they have advantage
+            target (Character or NPC): The target to check advantage against.
+
+        """
         return self.advantage_against.get(target, False)
 
     def has_disadvantage(self, combatant, target):
-        """Check if the combatant has disadvantage against a target."""
+        """
+        Check if a given combatant has disadvantage against a target.
+
+        Args:
+            combatant (Character or NPC): The one to check if they have disadvantage
+            target (Character or NPC): The target to check disadvantage against.
+
+        """
         return self.disadvantage_against.get(target, False)
 
     def queue_action(self, action_dict, combatant=None):
@@ -111,7 +175,7 @@ class EvAdventureCombatTwitchHandler(EvAdventureCombatBaseHandler):
 
         Args:
             action_dict (dict): The new action-dict to initialize.
-            combatant (optional): Unused.
+            combatant: Unused.
 
         """
         if action_dict["key"] not in self.action_classes:
@@ -129,11 +193,9 @@ class EvAdventureCombatTwitchHandler(EvAdventureCombatBaseHandler):
             # no repeat
             self.current_ticker_ref = None
         else:
-                # always schedule the task to be repeating, cancel later
-                # otherwise. We store the tickerhandler's ref to make sure 
-                # we can remove it later
-            self.current_ticker_ref = repeat(
-                dt, self.execute_next_action, id_string="combat")
+            # always schedule the task to be repeating, cancel later otherwise. We store
+            # the tickerhandler's ref to make sure we can remove it later
+            self.current_ticker_ref = repeat(dt, self.execute_next_action, id_string="combat")
 
     def execute_next_action(self):
         """
@@ -169,17 +231,25 @@ class EvAdventureCombatTwitchHandler(EvAdventureCombatBaseHandler):
         enemies = [comb for comb in enemies if comb.hp > 0 and comb.location == location]
 
         if not allies and not enemies:
-            self.msg("The combat is over. Noone stands.", broadcast=False)
+            self.msg("Noone stands after the dust settles.", broadcast=False)
             self.stop_combat()
             return
-        if not allies: 
-            self.msg("The combat is over. You lost.", broadcast=False)
-            self.stop_combat()
-        if not enemies:
-            self.msg("The combat is over. You won!", broadcast=False)
+
+        if not allies or not enemies:
+            if allies + enemies == [self.obj]:
+                self.msg("The combat is over.")
+            else:
+                still_standing = list_to_string(f"$You({comb.key})" for comb in allies + enemies)
+                self.msg(
+                    f"The combat is over. Still standing: {still_standing}.",
+                    broadcast=False,
+                )
             self.stop_combat()
 
     def stop_combat(self):
+        """
+        Stop combat immediately.
+        """
         self.queue_action({"key": "hold", "dt": 0})  # make sure ticker is killed
         del self.obj.ndb.combathandler
         self.obj.cmdset.remove(TwitchLookCmdSet)
@@ -224,21 +294,46 @@ class _BaseTwitchCombatCommand(Command):
             rhs = " ".join(rhs)
         self.lhs, self.rhs = lhs.strip(), rhs.strip()
 
-    def get_or_create_combathandler(self, target=None, combathandler_name="combathandler"):
+    def get_or_create_combathandler(self, target=None, combathandler_key="combathandler"):
         """
         Get or create the combathandler assigned to this combatant.
 
         """
-        if not target:
-            self.msg("You can't find that target.")
-            raise InterruptCommand()
-        # Check if the target is a character
-        if not isinstance(target, Character):
-            self.msg(f"{target.key} is not a valid target. You can only attack monsters or other characters.")
-            raise InterruptCommand()
+        if target:
+            # add/check combathandler to the target
+            if target.hp_max is None:
+                self.msg("You can't attack that!")
+                raise InterruptCommand()
 
-        EvAdventureCombatTwitchHandler.get_or_create_combathandler(target)
-        return EvAdventureCombatTwitchHandler.get_or_create_combathandler(self.caller)
+            SUCombatTwitchHandler.get_or_create_combathandler(
+                target, key=combathandler_key
+            )
+        return SUCombatTwitchHandler.get_or_create_combathandler(self.caller)
+
+class CmdAttack(_BaseTwitchCombatCommand):
+    """
+    Attack a target. Will keep attacking the target until
+    combat ends or another combat action is taken.
+
+    Usage:
+        attack/hit <target>
+
+    """
+
+    key = "attack"
+    aliases = ["hit"]
+    help_category = "combat"
+
+    def func(self):
+        target = self.caller.search(self.lhs)
+        if not target:
+            return
+
+        combathandler = self.get_or_create_combathandler(target)
+        # we use a fixed dt of 3 here, to mimic Diku style; one could also picture
+        # attacking at a different rate, depending on skills/weapon etc.
+        combathandler.queue_action({"key": "attack", "target": target, "dt": 3, "repeat": True})
+        combathandler.msg(f"$You() $conj(attack) $You({target.key})!", self.caller)
 
 class CmdLook(default_cmds.CmdLook, _BaseTwitchCombatCommand):
     def func(self):
@@ -265,34 +360,6 @@ class CmdHold(_BaseTwitchCombatCommand):
         combathandler = self.get_or_create_combathandler()
         combathandler.queue_action({"key": "hold"})
         combathandler.msg("$You() $conj(hold) back, doing nothing.", self.caller)
-
-class CmdAttack(_BaseTwitchCombatCommand):
-    """
-    Attack a target. Will keep attacking the target until
-    combat ends or another combat action is taken.
-
-    Usage:
-        attack/hit <target>
-
-    """
-
-    key = "attack"
-    aliases = ["hit"]
-    help_category = "combat"
-
-    def func(self):
-        target = self.caller.search(self.lhs)
-        if not target:
-            return
-
-        combathandler = self.get_or_create_combathandler(target)
-        combathandler.queue_action(
-            {"key": "attack", 
-             "target": target, 
-             "dt": 3, # This is delta time it takes to attack. Can be affected by things - TODO
-             "repeat": True}
-        )
-        combathandler.msg(f"$You() $conj(attack) $You({target.key})!", self.caller)
 
 class CmdStunt(_BaseTwitchCombatCommand):
     """
@@ -361,9 +428,10 @@ class CmdStunt(_BaseTwitchCombatCommand):
             # something like `boost str target`
             target = recipient if advantage else "me"
             recipient = "me" if advantage else recipient
-            # we still have None:s at this point, we can't continue
+
+        # if we still have None:s at this point, we can't continue
         if None in (stunt_type, recipient, target):
-            self.msg("Both ability, recipient and target of stunt must be given.")
+            self.msg("Both ability, recipient and  target of stunt must be given.")
             raise InterruptCommand()
 
         # save what we found so it can be accessed from func()
@@ -425,8 +493,7 @@ class CmdUseItem(_BaseTwitchCombatCommand):
 
     def func(self):
         item = self.caller.search(
-            self.item,
-            candidates=self.caller.equipment.get_usable_objects_from_backpack()
+            self.item, candidates=self.caller.equipment.get_usable_objects_from_backpack()
         )
         if not item:
             self.msg("(You must carry the item to use it.)")
@@ -436,21 +503,16 @@ class CmdUseItem(_BaseTwitchCombatCommand):
             if not target:
                 return
 
-        combathandler = self.get_or_create_combathandler(self.target)
-        combathandler.queue_action(
-            {"key": "use", 
-             "item": item, 
-             "target": target, 
-             "dt": 3}
-        )
+        combathandler = self.get_or_create_combathandler(target)
+        combathandler.queue_action({"key": "use", "item": item, "target": target, "dt": 3})
         combathandler.msg(
             f"$You() prepare to use {item.get_display_name(self.caller)}!", self.caller
         )
 
 class CmdWield(_BaseTwitchCombatCommand):
     """
-    Wield a weapon or spell-rune. You will the wield the item, 
-        swapping with any other item(s) you were wielded before.
+    Wield a weapon or spell-rune. You will the wield the item, swapping with any other item(s) you
+    were wielded before.
 
     Usage:
       wield <weapon or spell>
@@ -460,9 +522,8 @@ class CmdWield(_BaseTwitchCombatCommand):
       wield shield
       wield fireball
 
-    Note that wielding a shield will not replace the sword in your hand, 
-        while wielding a two-handed weapon (or a spell-rune) will take 
-        two hands and swap out what you were carrying.
+    Note that wielding a shield will not replace the sword in your hand, while wielding a two-handed
+    weapon (or a spell-rune) will take two hands and swap out what you were carrying.
 
     """
 
@@ -491,6 +552,8 @@ class TwitchCombatCmdSet(CmdSet):
     Add to character, to be able to attack others in a twitch-style way.
     """
 
+    key = "twitch_combat_cmdset"
+
     def at_cmdset_creation(self):
         self.add(CmdAttack())
         self.add(CmdHold())
@@ -503,6 +566,7 @@ class TwitchLookCmdSet(CmdSet):
     This will be added/removed dynamically when in combat.
     """
 
+    key = "twitch_look_cmdset"
+
     def at_cmdset_creation(self):
         self.add(CmdLook())
-

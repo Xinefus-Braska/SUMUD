@@ -107,6 +107,10 @@ MAX_NR_SIMULTANEOUS_PUPPETS = 3
 # a new account is created. Together with AUTO_PUPPET_ON_LOGIN, this mimics
 # a legacy MUD, where there is no difference between account and character.
 AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
+# BASE_ACCOUNT_TYPECLASS = 
+CHARGEN_MENU = "world.character.chargen"
+BASE_CHARACTER_TYPECLASS = "world.character.characters.SUCharacter"
+# BASE_OBJECT_TYPECLASS = 
 # Whether an account should auto-puppet the last puppeted puppet when logging in. This
 # will only work if the session/puppet combination can be determined (usually
 # MULTISESSION_MODE 0 or 1), otherwise, the player will end up OOC. Use

@@ -10,7 +10,6 @@ with a location in the game world (like Characters, Rooms, Exits).
 
 from evennia.objects.objects import DefaultObject
 
-
 class ObjectParent:
     """
     This is a mixin that can be used to override *all* entities inheriting at
@@ -21,7 +20,7 @@ class ObjectParent:
     take precedence.
 
     """
-
+    pass
 
 class Object(ObjectParent, DefaultObject):
     """

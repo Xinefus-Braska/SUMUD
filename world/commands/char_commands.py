@@ -62,34 +62,39 @@ class CmdScore(Command):
 
         # create a new form from the template - using the python path
         form = evform.EvForm("world.forms.scoreform")
+        if target.is_typeclass("world.character.characters.SUCharacter"):
+            account = target.account.name
+            level = int(target.level)
+        else:
+            account = "NPC"
+            level = "N/A"
 
         # add data to each tagged form cell
         form.map(cells={1: target.name,
-                        2: target.account.name,
+                        2: account,
                         3: "Something",
                         4: target.permissions,
-                        5: int(target.traits.level.value),
-                        6: int(target.traits.lf.current),
-                        7: int(target.traits.lf_base.value),
-                        #8: int(target.stats.limit.value),
-                        #9: int(target.stats.limit.max)
+                        5: level,
+                        6: int(target.hp),
+                        7: int(target.hp_max)
                         },
                         align="r")
 
         # create the EvTables
         tableA = evtable.EvTable("","Base","Mod","Total",
                             table=[["STR", "DEX", "INT"],
-                            [int(target.stats.str_base.value), int(target.stats.dex_base.value), int(target.stats.int_base.value)],
-                            [int(target.stats.str.mod), int(target.stats.dex.mod), int(target.stats.int.mod)],
-                            [int(target.stats.str.value), int(target.stats.dex.value), int(target.stats.int.value)]],
+                            [int(target.strength), int(target.dexterity), int(target.intelligence)],
+                            [5, 5, 5],
+                            [5, 5, 5]],
                             border="incols")
         
         # add the tables to the proper ids in the form
         form.map(tables={"A": tableA })
         self.msg(str(form))
+
 class CharCmdSet(CmdSet):
 
     def at_cmdset_creation(self):
-        self.add(CmdHit)
+        #self.add(CmdHit)
         self.add(CmdScore)
         

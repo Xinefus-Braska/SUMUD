@@ -17,8 +17,9 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 from evennia import default_cmds
 #from evennia.contrib.grid.xyzgrid.commands import XYZGridCmdSet
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
-from commands.char_commands import CharCmdSet
+from world.commands.char_commands import CharCmdSet
 from world.combat.combat_twitch import TwitchCombatCmdSet
+from world.commands.sucommands import SUCmdSet
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
@@ -41,6 +42,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(CharCmdSet)
         self.add(TwitchCombatCmdSet)
         # self.add(XYZGridCmdSet)
+        self.add(SUCmdSet)
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
