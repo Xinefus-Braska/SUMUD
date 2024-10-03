@@ -110,6 +110,7 @@ AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
 # BASE_ACCOUNT_TYPECLASS = 
 CHARGEN_MENU = "world.character.chargen"
 BASE_CHARACTER_TYPECLASS = "world.character.characters.SUCharacter"
+BASE_ROOM_TYPECLASS = "world.rooms.rooms.SURoom"
 # BASE_OBJECT_TYPECLASS = 
 # Whether an account should auto-puppet the last puppeted puppet when logging in. This
 # will only work if the session/puppet combination can be determined (usually

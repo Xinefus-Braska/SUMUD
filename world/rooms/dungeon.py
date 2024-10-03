@@ -30,7 +30,7 @@ from evennia.typeclasses.attributes import AttributeProperty
 from evennia.utils import create, search
 from evennia.utils.utils import inherits_from
 
-from typeclasses.rooms import SURoom
+from world.rooms.rooms import SURoom
 
 # aliases for cardinal directions
 _AVAILABLE_DIRECTIONS = [

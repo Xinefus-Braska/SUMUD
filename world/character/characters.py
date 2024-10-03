@@ -12,7 +12,6 @@ from world.utils.rules import dice
 from world.character.equipment import EquipmentError, EquipmentHandler
 from world.rooms.quests import SUQuestHandler
 
-
 class LivingMixin:
 
     # makes it easy for mobs to know to attack PCs
@@ -261,7 +260,6 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         """
         # don't allow looting in pvp
         return not self.location.allow_pvp
-
 
     def at_looted(self, looter):
         """

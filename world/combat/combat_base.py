@@ -123,6 +123,8 @@ class CombatActionAttack(CombatAction):
                 attacker, target, advantage=self.combathandler.has_advantage(attacker, target)
             )
             weapon.at_post_use(attacker, target)
+        
+        target.at_attacked(attacker)
 
 class CombatActionStunt(CombatAction):
     """
@@ -261,10 +263,12 @@ class SUCombatBaseHandler(DefaultScript):
             obj (any): The Typeclassed entity to store the CombatHandler Script on. This could be
                 a location (for turn-based combat) or a Character (for twitch-based combat).
         Keyword Args:
-            combathandler_key (str): They key name for the script. Will be 'combathandler' by
+            combathandler_key (str): The key name for the script. Will be 'combathandler' by
                 default.
             **kwargs: Arguments to the Script, if it is created.
 
+        Returns:
+            combathandler (SUCombatBaseHandler): The created or retrieved combat handler.
         """
         if not obj:
             raise CombatFailure("Cannot start combat without a place to do it!")
@@ -274,7 +278,7 @@ class SUCombatBaseHandler(DefaultScript):
         if not combathandler or not combathandler.id:
             combathandler = obj.scripts.get(combathandler_key).first()
             if not combathandler:
-                # have to create from scratch
+                # Create from scratch
                 persistent = kwargs.pop("persistent", True)
                 combathandler = create_script(
                     cls,

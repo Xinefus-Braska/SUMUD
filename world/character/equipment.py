@@ -171,7 +171,7 @@ class EquipmentHandler:
 
         two_hands = slots[WieldLocation.TWO_HANDS]
         if two_hands:
-            weapon_str = f"You wield {two_hands} with both hands"
+            weapon_str = f"You wield {two_hands} with both hands."
             shield_str = " (you can't hold a shield at the same time)."
         else:
             one_hands = slots[WieldLocation.WEAPON_HAND]
@@ -189,7 +189,7 @@ class EquipmentHandler:
         if helmet:
             helmet_str = f" and {helmet} on your head."
 
-        return f"{weapon_str}{shield_str}\n{armor_str}{helmet_str}"
+        return f"{weapon_str} {shield_str}\n{armor_str} {helmet_str}"
 
     def display_backpack(self):
         """

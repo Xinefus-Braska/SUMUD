@@ -20,6 +20,7 @@ from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from world.commands.char_commands import CharCmdSet
 from world.combat.combat_twitch import TwitchCombatCmdSet
 from world.commands.sucommands import SUCmdSet
+from world.rooms.quests import CmdQuests
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
@@ -43,6 +44,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(TwitchCombatCmdSet)
         # self.add(XYZGridCmdSet)
         self.add(SUCmdSet)
+        self.add(CmdQuests)
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
