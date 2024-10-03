@@ -1,16 +1,19 @@
 from random import choice
 
-from evennia import DefaultCharacter
+from evennia import DefaultCharacter, CmdSet, search_object
 from evennia.typeclasses.attributes import AttributeProperty
 from evennia.typeclasses.tags import TagProperty
 from evennia.utils.evmenu import EvMenu
 from evennia.utils.utils import lazy_property, make_iter
 
 from world.character.ai import AIHandler
-from world.character.characters import LivingMixin
+from world.character.characters import LivingMixin, SUCharacter
 from world.utils.enums import Ability, WieldLocation
 from world.objects.object import get_bare_hands
 from world.utils.rules import dice
+
+from commands.command import Command
+from evennia.utils import evform, evtable
 
 class SUNPC(LivingMixin, DefaultCharacter):
     """
@@ -269,7 +272,7 @@ class SUMob(SUNPC):
         Manage the combat/combat state of the mob.
 
         """
-        if combathandler := self.nbd.combathandler:
+        if combathandler := self.ndb.combathandler:
             # already in combat
             allies, enemies = combathandler.get_sides(self)
             action = self.ai.random_probability(self.combat_probabilities)
@@ -278,13 +281,13 @@ class SUMob(SUNPC):
                 case "hold":
                     combathandler.queue_action({"key": "hold"})
                 case "combat":
-                    combathandler.queue_action({"key": "attack", "target": random.choice(enemies)})
+                    combathandler.queue_action({"key": "attack", "target": choice(enemies)})
                 case "stunt":
                     # choose a random ally to help
                     combathandler.queue_action(
                         {
                             "key": "stunt",
-                            "recipient": random.choice(allies),
+                            "recipient": choice(allies),
                             "advantage": True,
                             "stunt": Ability.STR,
                             "defense": Ability.DEX,
@@ -292,10 +295,10 @@ class SUMob(SUNPC):
                     )
                 case "item":
                     # use a random item on a random ally
-                    target = random.choice(allies)
+                    target = choice(allies)
                     valid_items = [item for item in self.contents if item.at_pre_use(self, target)]
                     combathandler.queue_action(
-                        {"key": "item", "item": random.choice(valid_items), "target": target}
+                        {"key": "item", "item": choice(valid_items), "target": target}
                     )
                 case "flee":
                     self.ai.set_state("flee")
@@ -303,7 +306,7 @@ class SUMob(SUNPC):
         elif not (targets := self.ai.get_targets()):
             self.ai.set_state("roam")
         else:
-            target = random.choice(targets)
+            target = choice(targets)
             self.execute_cmd(f"attack {target.key}")
 
     def ai_roam(self):
@@ -313,11 +316,11 @@ class SUMob(SUNPC):
         """
         if targets := self.ai.get_targets():
             self.ai.set_state("combat")
-            self.execute_cmd(f"attack {random.choice(targets).key}")
+            self.execute_cmd(f"attack {choice(targets).key}")
         else:
             exits = self.ai.get_traversable_exits()
             if exits:
-                exi = random.choice(exits)
+                exi = choice(exits)
                 self.execute_cmd(f"{exi.key}")
 
     def ai_flee(self):
@@ -331,7 +334,7 @@ class SUMob(SUNPC):
         exits = self.ai.get_traversable_exits(exclude_destination=past_room)
         if exits:
             self.attributes.set("past_room", current_room, category="ai_state")
-            exi = random.choice(exits)
+            exi = choice(exits)
             self.execute_cmd(f"{exi.key}")
         else:
             # if in a dead end, roam will allow for backing out
@@ -344,3 +347,67 @@ class SUMob(SUNPC):
         """
         self.at_death()
 
+class CmdScore(Command):
+    """
+    Score sheet for a character
+    """
+    key = "score"
+    aliases = "sc"
+
+    def func(self):
+        if self.caller.check_permstring("Developer"): 
+            if self.args:
+                # Use a global search to find the character (case-insensitive search by default)
+                target_name = self.args.strip()
+                potential_targets = search_object(target_name)
+        
+                # Narrow down to the first valid character target
+                target = None
+                for obj in potential_targets:
+                    if isinstance(obj, (SUCharacter, SUMob)):
+                        target = obj
+                        break
+                    elif not target:
+                        self.caller.msg(f"Could not find a valid character or mob named '{target_name}'.")
+                        return
+            else:
+                target = self.caller    
+        else:
+            target = self.caller
+
+        # create a new form from the template - using the python path
+        form = evform.EvForm("world.forms.scoreform")
+        if target.is_typeclass("world.character.characters.SUCharacter"):
+            account = target.account.name
+            level = int(target.level)
+        else:
+            account = "NPC"
+            level = "N/A"
+
+        # add data to each tagged form cell
+        form.map(cells={1: target.name,
+                        2: account,
+                        3: "Something",
+                        4: target.permissions,
+                        5: level,
+                        6: int(target.hp),
+                        7: int(target.hp_max)
+                        },
+                        align="r")
+
+        # create the EvTables
+        tableA = evtable.EvTable("","Base","Mod","Total",
+                            table=[["STR", "DEX", "INT"],
+                            [int(target.strength), int(target.dexterity), int(target.intelligence)],
+                            [5, 5, 5],
+                            [5, 5, 5]],
+                            border="incols")
+        
+        # add the tables to the proper ids in the form
+        form.map(tables={"A": tableA })
+        self.msg(str(form))
+
+class CharCmdSet(CmdSet):
+
+    def at_cmdset_creation(self):
+        self.add(CmdScore)
