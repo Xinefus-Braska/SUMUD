@@ -255,7 +255,7 @@ class SUCombatBaseHandler(DefaultScript):
     fallback_action_dict = AttributeProperty({"key": "hold"}, autocreate=False)
 
     @classmethod
-    def get_or_create_combathandler(cls, obj, **kwargs):
+    def get_or_create_combathandler(cls, obj, target=None, **kwargs):
         """
         Get or create a combathandler on `obj`.
 
@@ -270,25 +270,76 @@ class SUCombatBaseHandler(DefaultScript):
         Returns:
             combathandler (SUCombatBaseHandler): The created or retrieved combat handler.
         """
+        #print("Class: ", cls)
+        #print("Object: ", obj)
+        #print("Target: ", target)
+        #print("kwargs: ", kwargs)
+        
         if not obj:
             raise CombatFailure("Cannot start combat without a place to do it!")
 
         combathandler_key = kwargs.pop("key", "combathandler")
-        combathandler = obj.ndb.combathandler
-        if not combathandler or not combathandler.id:
-            combathandler = obj.scripts.get(combathandler_key).first()
-            if not combathandler:
-                # Create from scratch
-                persistent = kwargs.pop("persistent", True)
-                combathandler = create_script(
-                    cls,
-                    key=combathandler_key,
-                    obj=obj,
-                    persistent=persistent,
-                    autostart=False,
-                    **kwargs,
-                )
-            obj.ndb.combathandler = combathandler
+
+        # Check if `obj` already has a combat handler
+        combathandler = obj.ndb.combathandler #obj.scripts.get(combathandler_key).first()
+                
+        if combathandler:
+            #print(combathandler, "handler already exists for", obj)
+
+            if target:
+                # Ensure target is added to the same handler
+                #print("Adding", target, "to:", obj, "handler")
+                target_combathandler = obj.ndb.combathandler #combathandler
+                #print(target, "has a handler, it is: ", target_combathandler)
+            
+                if target_combathandler:
+            
+                    if combathandler != target_combathandler:
+                        # Merge both combat handlers into one (use `obj`'s handler)
+                        target.ndb.combathandler = combathandler
+                        #print("Merging ", target, "handler to ", obj, "handler")
+            
+                else:
+                    # Target doesn't have a handler; assign the same handler
+                    target.ndb.combathandler = combathandler
+                    #print(target, "has no handler, assigning to: ", combathandler)
+            
+            return combathandler
+        
+        # If no handler exists for `obj`, check if `target` has one
+        if target:
+            
+            target_combathandler = target.scripts.get(combathandler_key).first()
+            
+            if target_combathandler:
+                print(target_combathandler, "handler already exists for", target)
+                obj.ndb.combathandler = target_combathandler
+                return target_combathandler
+        
+        # No handler exists for either, create a new one
+        combathandler = create_script(
+            cls,  # Use SUCombatTwitchHandler as the class
+            key=combathandler_key,
+            obj=obj,
+            persistent=True,
+            autostart=True,
+            **kwargs,
+        )
+        
+        if not combathandler:
+
+            obj.msg("Error: Could not create combat handler!")
+            return None
+
+        obj.ndb.combathandler = combathandler
+
+        if target:
+
+            target.ndb.combathandler = combathandler
+        
+        #print(obj.ndb.combathandler, "is the handler for", obj)
+        #print(target.ndb.combathandler, "is the handler for", target)
+        
         return combathandler
 
     def msg(self, message, combatant=None, broadcast=True, location=None):

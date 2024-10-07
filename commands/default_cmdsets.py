@@ -18,7 +18,7 @@ from evennia import default_cmds
 #from evennia.contrib.grid.xyzgrid.commands import XYZGridCmdSet
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from world.character.npc import CharCmdSet
-from world.combat.combat_twitch import TwitchCombatCmdSet
+from world.combat.multi_party_combat_twitch import TwitchCombatCmdSet
 from world.commands.sucommands import SUCmdSet
 from world.rooms.quests import CmdQuests
 

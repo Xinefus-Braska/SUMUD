@@ -278,11 +278,11 @@ class SUMob(SUNPC):
             action = self.ai.random_probability(self.combat_probabilities)
 
             match action:
-                case "hold":
-                    combathandler.queue_action({"key": "hold"})
+                #case "hold":
+                #    combathandler.queue_action({"key": "hold"})
                 case "combat":
                     combathandler.queue_action({"key": "attack", "target": choice(enemies)})
-                case "stunt":
+                    '''case "stunt":
                     # choose a random ally to help
                     combathandler.queue_action(
                         {
@@ -299,7 +299,7 @@ class SUMob(SUNPC):
                     valid_items = [item for item in self.contents if item.at_pre_use(self, target)]
                     combathandler.queue_action(
                         {"key": "item", "item": choice(valid_items), "target": target}
-                    )
+                    )'''
                 case "flee":
                     self.ai.set_state("flee")
 
