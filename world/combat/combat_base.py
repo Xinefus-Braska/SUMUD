@@ -270,10 +270,6 @@ class SUCombatBaseHandler(DefaultScript):
         Returns:
             combathandler (SUCombatBaseHandler): The created or retrieved combat handler.
         """
-        #print("Class: ", cls)
-        #print("Object: ", obj)
-        #print("Target: ", target)
-        #print("kwargs: ", kwargs)
         
         if not obj:
             raise CombatFailure("Cannot start combat without a place to do it!")
@@ -309,11 +305,12 @@ class SUCombatBaseHandler(DefaultScript):
         # If no handler exists for `obj`, check if `target` has one
         if target:
             
-            target_combathandler = target.scripts.get(combathandler_key).first()
+            target_combathandler = target.ndb.combathandler #target.scripts.get(combathandler_key).first()
             
             if target_combathandler:
                 print(target_combathandler, "handler already exists for", target)
                 obj.ndb.combathandler = target_combathandler
+                print(obj, "merging with handler for", target)
                 return target_combathandler
         
         # No handler exists for either, create a new one
@@ -336,9 +333,6 @@ class SUCombatBaseHandler(DefaultScript):
         if target:
 
             target.ndb.combathandler = combathandler
-        
-        #print(obj.ndb.combathandler, "is the handler for", obj)
-        #print(target.ndb.combathandler, "is the handler for", target)
         
         return combathandler
 

@@ -53,7 +53,7 @@ class SUNPC(LivingMixin, DefaultCharacter):
 
     weapon = AttributeProperty(default=get_bare_hands, autocreate=False)  # instead of inventory
     coins = AttributeProperty(default=1, autocreate=False)  # coin loot
-
+    
     # if this npc is attacked, everyone with the same tag in the current location will also be
     # pulled into combat.
     group = TagProperty("npcs")
@@ -93,18 +93,32 @@ class SUNPC(LivingMixin, DefaultCharacter):
         """
         self.hp = self.hp_max
         self.tags.add("npcs", category="group")
+        self.ndb.combathandler = None
 
     def at_attacked(self, attacker, **kwargs):
         """
         Called when being attacked and combat starts.
 
         """
-        pass
+        from world.combat.multi_party_combat_twitch import _BaseTwitchCombatCommand as Twitch
+        
+        target = attacker
+        # Get or create a shared combat handler for this combat
+        combathandler = Twitch.get_or_create_combathandler(self, target=target)
+        
+        # Add the caller (the player or NPC initiating combat) and the target to the combat handler
+        combathandler.add_combatant(self)
+        combathandler.add_combatant(target)
+
+        SUMob.ai_combat(self)
 
     def ai_next_action(self, **kwargs):
         """
         The combat engine should ask this method in order to
         get the next action the npc should perform in combat.
+
+        called when execute_next_action() is called?
+        then this should call ai_combat()
 
         """
         pass
@@ -250,10 +264,10 @@ class SUMob(SUNPC):
     # change this to make the mob more or less likely to perform different actions
     combat_probabilities = {
         "hold": 0.0,
-        "attack": 0.85,
-        "stunt": 0.05,
+        "attack": 1.0, #0.85,
+        "stunt": 0.0, #0.05,
         "item": 0.0,
-        "flee": 0.05,
+        "flee": 0.0 #0.05,
     }
 
     @lazy_property
@@ -272,17 +286,23 @@ class SUMob(SUNPC):
         Manage the combat/combat state of the mob.
 
         """
+        print(f"ai_combat has been called!")
+
         if combathandler := self.ndb.combathandler:
             # already in combat
             allies, enemies = combathandler.get_sides(self)
-            action = self.ai.random_probability(self.combat_probabilities)
+            #action = self.ai.random_probability(self.combat_probabilities)
 
+            #combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 3, "repeat": True}, self)
+            self.execute_cmd(f"say {choice(enemies)} is attacking me!")
+            '''
             match action:
-                #case "hold":
-                #    combathandler.queue_action({"key": "hold"})
+                case "hold":
+                    combathandler.queue_action({"key": "hold"})
                 case "combat":
-                    combathandler.queue_action({"key": "attack", "target": choice(enemies)})
-                    '''case "stunt":
+                    print("This is the only case for now. Attack back!")
+                    combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 3, "repeat": True}, self.caller)
+                case "stunt":
                     # choose a random ally to help
                     combathandler.queue_action(
                         {
@@ -299,15 +319,18 @@ class SUMob(SUNPC):
                     valid_items = [item for item in self.contents if item.at_pre_use(self, target)]
                     combathandler.queue_action(
                         {"key": "item", "item": choice(valid_items), "target": target}
-                    )'''
+                    )
                 case "flee":
                     self.ai.set_state("flee")
+            '''
 
         elif not (targets := self.ai.get_targets()):
             self.ai.set_state("roam")
+            print(f"Roam has been called!")
         else:
             target = choice(targets)
             self.execute_cmd(f"attack {target.key}")
+            print(f"execute attack has been called!")
 
     def ai_roam(self):
         """

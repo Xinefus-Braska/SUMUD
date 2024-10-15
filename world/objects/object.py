@@ -122,7 +122,7 @@ class SUWeapon(SUObject):
 
     def use(self, attacker, target, *args, advantage=False, disadvantage=False, **kwargs):
         """When a weapon is used, it attacks an opponent"""
-
+        print("Attacker:", attacker, "\nTarget:", target)
         location = attacker.location
 
         is_hit, quality, txt = rules.dice.opposed_saving_throw(

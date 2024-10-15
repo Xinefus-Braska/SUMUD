@@ -105,7 +105,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         if combatant not in self.db.combatants:
             self.db.combatants.append(combatant)
             combatant.ndb.combathandler = self
-            #combatant.msg(f"You join combat!")
+            combatant.msg(f"You join combat!")
         # Display the current list of combatants
         #self.display_combatants()
 
@@ -133,9 +133,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         else:
             # otherwise, enemies/allies depend on who combatant is
             pcs = [comb for comb in combatants if inherits_from(comb, SUCharacter)]
-            self.msg(f"pcs are: {pcs}")
             npcs = [comb for comb in combatants if comb not in pcs]
-            self.msg(f"npcs are: {npcs}")
 
             if combatant in pcs:
                 # combatant is a PC, so NPCs are all enemies
@@ -145,7 +143,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
                 # combatant is an NPC, so PCs are all enemies
                 allies = npcs
                 enemies = pcs
-
+        #print(combatant,": allies:", allies, "enemies:", enemies)
         return allies, enemies
 
     def give_advantage(self, recipient, target):
@@ -204,11 +202,10 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             combatant (Object): The combatant queuing the action.
         """
         if not combatant in self.db.combatants:
-
-            combatant.msg("You are not part of this combat!")
+            print(f"{combatant} is not part of {self.db.combatants}")
             return
         # Debug: Print the full action_dict and check its type
-        #print(f"Action dict received: {action_dict}")
+        print(f"{combatant} action dict received: {action_dict}")
         #print(f"Type of action_dict: {type(action_dict)}")
 
         # Ensure action_dict has a valid 'key'
@@ -216,18 +213,12 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         self.action_dict = action_dict
 
         # Debug: Print the action key and check if it's found
-        #print(f"Action key: {action_key}")
+        #print(f"Action key of {combatant}: {action_key}")
 
         if not action_key:
-
-            if inherits_from(combatant, SUMob):
-                # This is where we could add the AI part
-                SUMob.ai_combat()
-                return
-            else:
-                # Problem...
-                combatant.msg(f"Action dictionary for {self.name} is missing a 'key'.")
-                return
+            # Problem...
+            combatant.msg(f"Action dictionary for {self.name} is missing a 'key'.")
+            return
 
         if action_key not in self.action_classes:
 
@@ -278,7 +269,6 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
 
         if action_dict.get("repeat", True):
             # a repeating action, use the fallback (normally the original attack)
-            #print("Repeat the last action", action_dict)
             self.queue_action(self.action_dict, combatant)
         else:
             self.action_dict = self.fallback_action_dict
@@ -295,7 +285,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         allies, enemies = self.get_sides(self.obj)
 
         location = self.obj.location
-        '''
+        
         # only keep combatants that are alive and still in the same room
         allies = [comb for comb in allies if comb.hp > 0 and comb.location == location]
         enemies = [comb for comb in enemies if comb.hp > 0 and comb.location == location]
@@ -315,7 +305,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
                     broadcast=False,
                 )
             self.stop_combat()
-        '''
+
     def stop_combat(self):
         """
         Stop the combat and clean up.
@@ -373,33 +363,24 @@ class _BaseTwitchCombatCommand(Command):
         Get or create the combathandler assigned to this combatant.
 
         """
+        # If `self.caller` doesn't exist (for NPCs, etc.), fall back to `self`
+        combatant = getattr(self, 'caller', self)        
         #target = self.caller.search(self.lhs)
-        combathandler_key= self.caller.name + "_twitch_combathandler"
+        combathandler_key= combatant.name + "_twitch_combathandler"
         
         if not target:
-            self.msg("You can't find that target.")
+            combatant.msg("You can't find that target.")
             raise InterruptCommand()
         # Check if the target is a character
         if not isinstance(target, (SUCharacter, SUMob)):
-            self.msg(f"{target.key} is not a valid target. You can only attack monsters or other characters.")
+            combatant.msg(f"{target.key} is not a valid target. You can only attack monsters or other characters.")
             raise InterruptCommand()
 
-        '''SUCombatTwitchHandler.get_or_create_combathandler(
-                obj=self.caller,
-                target=target, 
-                key=combathandler_key
-            )'''
         return SUCombatTwitchHandler.get_or_create_combathandler(
-                obj=self.caller,
+                obj=combatant,
                 target=target, 
                 key=combathandler_key
             )
-    
-        '''SUCombatTwitchHandler.get_or_create_combathandler(
-                obj=target,
-                target=self.caller, 
-                key=combathandler_key
-            )'''
 
 class CmdAttack(_BaseTwitchCombatCommand):
     """
@@ -429,8 +410,9 @@ class CmdAttack(_BaseTwitchCombatCommand):
         
         # we use a fixed dt of 3 here, to mimic Diku style; one could also picture
         # attacking at a different rate, depending on skills/weapon etc.
+        
         combathandler.queue_action({"key": "attack", "target": target, "dt": 3, "repeat": True}, self.caller)
-        combathandler.msg(f"$You() $conj(attack) $You({target.key})!", self.caller)
+        combathandler.msg(f"$You() $conj(attack) $You({target})!", self.caller)
 
 class CmdUseItem(_BaseTwitchCombatCommand):
     """
