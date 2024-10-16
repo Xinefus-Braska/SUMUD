@@ -322,17 +322,17 @@ class SUCombatBaseHandler(DefaultScript):
             autostart=True,
             **kwargs,
         )
-        
-        if not combathandler:
-
-            obj.msg("Error: Could not create combat handler!")
-            return None
 
         obj.ndb.combathandler = combathandler
 
         if target:
 
             target.ndb.combathandler = combathandler
+        
+        if not combathandler:
+
+            print("Error: Could not create combat handler!")
+            return None
         
         return combathandler
 

@@ -9,6 +9,8 @@ from evennia.utils.utils import (
     unrepeat,
 )
 
+import time
+
 from world.character.characters import SUCharacter
 from world.character.npc import SUMob
 from world.combat.combat_base import (
@@ -196,7 +198,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
 
     def queue_action(self, action_dict, combatant):
         """
-        Queue an action for the given combatant.
+        Queue an action for the given combatant in the shared action queue.
         Args:
             action_dict (dict): A dictionary describing the action to queue.
             combatant (Object): The combatant queuing the action.
@@ -205,19 +207,19 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             print(f"{combatant} is not part of {self.db.combatants}")
             return
         # Debug: Print the full action_dict and check its type
-        print(f"{combatant} action dict received: {action_dict}")
+        #print(f"{combatant} action dict received: {action_dict}")
         #print(f"Type of action_dict: {type(action_dict)}")
 
         # Ensure action_dict has a valid 'key'
         action_key = action_dict.get("key", None)
-        self.action_dict = action_dict
+        #self.action_dict = action_dict
 
         # Debug: Print the action key and check if it's found
         #print(f"Action key of {combatant}: {action_key}")
 
         if not action_key:
             # Problem...
-            combatant.msg(f"Action dictionary for {self.name} is missing a 'key'.")
+            print(f"Action dictionary for {self.name} is missing a 'key'.")
             return
 
         if action_key not in self.action_classes:
@@ -226,14 +228,32 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             return
 
         # Add the action to the shared action queue
-        self.db.action_queue.append((combatant, action_dict))
+        #self.db.action_queue.append((combatant, action_dict))
 
          # Handle the delay (dt) if it exists in the action dict
         dt = action_dict.get("dt", 0)  # Default to 0 delay if not provided
+        time_to_act = time.time() + dt  # Current time + delay
 
+        # Add the action to the shared queue
+        self.db.action_queue.append({
+            "combatant": combatant,
+            "action_dict": action_dict,
+            "time_to_act": time_to_act
+        })
+
+        # Sort the queue by time_to_act to ensure the soonest actions are executed first
+        self.db.action_queue.sort(key=lambda x: x["time_to_act"])
+
+        #combatant.msg(f"Queued action '{action_key}' to execute in {dt} seconds.")
+
+        # Ensure the ticker is running to process the queue
+        if not self.current_ticker_ref:
+            self.current_ticker_ref = repeat(dt, self.process_queue, id_string="combat")
+        '''
         if self.current_ticker_ref:
             # we already have a current ticker going - abort it
             unrepeat(self.current_ticker_ref)
+        
         if dt <= 0:
             # no repeat
             self.current_ticker_ref = None
@@ -242,17 +262,37 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             # always schedule the task to be repeating, cancel later otherwise. We store
             # the tickerhandler's ref to make sure we can remove it later
             self.current_ticker_ref = repeat(dt, self.execute_next_action, id_string="combat")
+        '''
+    def process_queue(self):
+        """
+        Periodically process the action queue to execute actions whose delay has expired.
+        """
+    
+        current_time = time.time()
+        if not self.db.action_queue:
+            return
+        
+        # Iterate over the queue and execute actions whose time_to_act has passed
+        while self.db.action_queue and self.db.action_queue[0]["time_to_act"] <= current_time:
+            next_action = self.db.action_queue.pop(0)
+            combatant = next_action["combatant"]
+            action_dict = next_action["action_dict"]
 
-    def execute_next_action(self):
+             # Execute the action
+            self.execute_next_action(action_dict, combatant)
+
+        # Stop the ticker if no actions remain
+        if not self.db.action_queue:
+            unrepeat(self.current_ticker_ref)
+            self.current_ticker_ref = None
+
+    def execute_next_action(self, action_dict, combatant):
         """
         Execute the next action in the action queue.
         """
-        if not self.db.action_queue:
-            return
-
-        # Get the next action and combatant from the queue
-        combatant, action_dict = self.db.action_queue.pop(0)
-        action_class = self.action_classes.get(action_dict["key"])
+        #print(f"{combatant} is about to execute {action_dict}")
+        action_key = action_dict["key"]
+        action_class = self.action_classes.get(action_key)
 
         if action_class:
             action = action_class(self, combatant, action_dict)
@@ -261,15 +301,17 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             if action.can_use():
                 action.execute()
                 action.post_execute()
-                self.msg(f"{combatant.key} performs {action_dict['key']} successfully!")
+                #print(f"{combatant.key} performs {action_dict['key']} successfully!")
             else:
                 combatant.msg(f"Action {action_dict['key']} cannot be used right now.")
         else:
-            combatant.msg(f"Unknown action '{action_dict['key']}'.")
+            print(f"{combatant}: Unknown action '{action_dict['key']}'.")
 
         if action_dict.get("repeat", True):
             # a repeating action, use the fallback (normally the original attack)
+            self.action_dict = action_dict
             self.queue_action(self.action_dict, combatant)
+            #print(f"{combatant}: is repeating the same attack, {self.action_dict}")
         else:
             self.action_dict = self.fallback_action_dict
             self.queue_action(self.action_dict, combatant)
@@ -366,7 +408,7 @@ class _BaseTwitchCombatCommand(Command):
         # If `self.caller` doesn't exist (for NPCs, etc.), fall back to `self`
         combatant = getattr(self, 'caller', self)        
         #target = self.caller.search(self.lhs)
-        combathandler_key= combatant.name + "_twitch_combathandler"
+        combathandler_key=f"{combatant.name}_twitch_combathandler"
         
         if not target:
             combatant.msg("You can't find that target.")

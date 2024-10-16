@@ -293,8 +293,8 @@ class SUMob(SUNPC):
             allies, enemies = combathandler.get_sides(self)
             #action = self.ai.random_probability(self.combat_probabilities)
 
-            #combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 3, "repeat": True}, self)
-            self.execute_cmd(f"say {choice(enemies)} is attacking me!")
+            combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 3, "repeat": True}, self)
+            #self.execute_cmd(f"say {choice(enemies)} is attacking me!")
             '''
             match action:
                 case "hold":
