@@ -286,14 +286,15 @@ class SUMob(SUNPC):
         Manage the combat/combat state of the mob.
 
         """
-        print(f"ai_combat has been called!")
+        #print(f"ai_combat has been called!")
 
         if combathandler := self.ndb.combathandler:
             # already in combat
             allies, enemies = combathandler.get_sides(self)
             #action = self.ai.random_probability(self.combat_probabilities)
 
-            combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 3, "repeat": True}, self)
+            # NPC delay (dt) set by default to 1 second. 
+            combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 1, "repeat": True}, self)
             #self.execute_cmd(f"say {choice(enemies)} is attacking me!")
             '''
             match action:

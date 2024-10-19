@@ -450,10 +450,11 @@ class CmdAttack(_BaseTwitchCombatCommand):
         combathandler.add_combatant(self.caller)
         combathandler.add_combatant(target)
         
-        # we use a fixed dt of 3 here, to mimic Diku style; one could also picture
+        # we use a fixed dt of 1 here, to mimic Diku style; one could also picture
         # attacking at a different rate, depending on skills/weapon etc.
+        # Would need to call on the stats of the caller to determine dt of attack. 
         
-        combathandler.queue_action({"key": "attack", "target": target, "dt": 3, "repeat": True}, self.caller)
+        combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": True}, self.caller)
         combathandler.msg(f"$You() $conj(attack) $You({target})!", self.caller)
 
 class CmdUseItem(_BaseTwitchCombatCommand):
