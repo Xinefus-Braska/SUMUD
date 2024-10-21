@@ -36,17 +36,11 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         "use": CombatActionUseItem,
         "wield": CombatActionWield,
     }
-
     # dynamic properties
-
     advantage_against = AttributeProperty(dict)
     disadvantage_against = AttributeProperty(dict)
-
     action_dict = AttributeProperty(dict)
     fallback_action_dict = AttributeProperty({"key": "attack", "dt": 3, "repeat": True})
-
-    # stores the current ticker reference, so we can manipulate it later
-    current_ticker_ref = AttributeProperty(None)
 
     def at_script_creation(self):
         """
@@ -206,31 +200,19 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         if not combatant in self.db.combatants:
             print(f"{combatant} is not part of {self.db.combatants}")
             return
-        # Debug: Print the full action_dict and check its type
-        #print(f"{combatant} action dict received: {action_dict}")
-        #print(f"Type of action_dict: {type(action_dict)}")
 
         # Ensure action_dict has a valid 'key'
         action_key = action_dict.get("key", None)
-        #self.action_dict = action_dict
-
-        # Debug: Print the action key and check if it's found
-        #print(f"Action key of {combatant}: {action_key}")
 
         if not action_key:
-            # Problem...
             print(f"Action dictionary for {self.name} is missing a 'key'.")
             return
 
         if action_key not in self.action_classes:
-
             combatant.msg(f"{action_key} is not a valid action!")
             return
 
-        # Add the action to the shared action queue
-        #self.db.action_queue.append((combatant, action_dict))
-
-         # Handle the delay (dt) if it exists in the action dict
+        # Handle the delay (dt) if it exists in the action dict
         dt = action_dict.get("dt", 0)  # Default to 0 delay if not provided
         time_to_act = time.time() + dt  # Current time + delay
 
@@ -244,53 +226,48 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         # Sort the queue by time_to_act to ensure the soonest actions are executed first
         self.db.action_queue.sort(key=lambda x: x["time_to_act"])
 
-        #combatant.msg(f"Queued action '{action_key}' to execute in {dt} seconds.")
-
-        # Ensure the ticker is running to process the queue
-        if not self.current_ticker_ref:
-            self.current_ticker_ref = repeat(dt, self.process_queue, id_string="combat")
-        '''
-        if self.current_ticker_ref:
-            # we already have a current ticker going - abort it
-            unrepeat(self.current_ticker_ref)
-        
-        if dt <= 0:
-            # no repeat
-            self.current_ticker_ref = None
-            self.execute_next_action()
+        # If delay > 0, schedule the next action using at_repeat
+        if dt > 0:
+            print(f"Scheduling process_queue in {dt} seconds.")
+            self.at_start(interval=dt, repeats=1, callback=self.process_queue)
         else:
-            # always schedule the task to be repeating, cancel later otherwise. We store
-            # the tickerhandler's ref to make sure we can remove it later
-            self.current_ticker_ref = repeat(dt, self.execute_next_action, id_string="combat")
-        '''
+            self.process_queue()
+
     def process_queue(self):
         """
         Periodically process the action queue to execute actions whose delay has expired.
         """
     
+        print("Processing queue...")
         current_time = time.time()
         if not self.db.action_queue:
             return
         
+        print(f"Processing action queue at {current_time}. Current queue: {self.db.action_queue}")
+
         # Iterate over the queue and execute actions whose time_to_act has passed
         while self.db.action_queue and self.db.action_queue[0]["time_to_act"] <= current_time:
             next_action = self.db.action_queue.pop(0)
             combatant = next_action["combatant"]
             action_dict = next_action["action_dict"]
 
-             # Execute the action
+            print(f"Executing action '{action_dict['key']}' for combatant '{combatant.key}'.")
+            
+            # Execute the action
             self.execute_next_action(action_dict, combatant)
 
-        # Stop the ticker if no actions remain
-        if not self.db.action_queue:
-            unrepeat(self.current_ticker_ref)
-            self.current_ticker_ref = None
+        # If there are still actions in the queue, re-schedule the next one based on the next dt
+        if self.db.action_queue:
+            next_action_dict = self.db.action_queue[0]
+            dt = max(0, next_action_dict["time_to_act"] - time.time())  # Calculate remaining delay time
+            next_dt = max(0, next_action_dict["time_to_act"] - time.time())
+            print(f"Rescheduling process_queue in {next_dt} seconds.")
+            self.at_repeat(interval=next_dt, repeats=1, callback=self.process_queue)
 
     def execute_next_action(self, action_dict, combatant):
         """
         Execute the next action in the action queue.
         """
-        #print(f"{combatant} is about to execute {action_dict}")
         action_key = action_dict["key"]
         action_class = self.action_classes.get(action_key)
 
@@ -301,17 +278,16 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             if action.can_use():
                 action.execute()
                 action.post_execute()
-                #print(f"{combatant.key} performs {action_dict['key']} successfully!")
+                print(f"Executed action '{action_dict['key']}' for combatant '{combatant.key}'.")
             else:
                 combatant.msg(f"Action {action_dict['key']} cannot be used right now.")
         else:
             print(f"{combatant}: Unknown action '{action_dict['key']}'.")
-
+        # Re-queue the action if it is set to repeat
         if action_dict.get("repeat", True):
-            # a repeating action, use the fallback (normally the original attack)
+            print(f"Re-queuing action '{action_dict['key']}' for combatant '{combatant.key}'.")
             self.action_dict = action_dict
             self.queue_action(self.action_dict, combatant)
-            #print(f"{combatant}: is repeating the same attack, {self.action_dict}")
         else:
             self.action_dict = self.fallback_action_dict
             self.queue_action(self.action_dict, combatant)

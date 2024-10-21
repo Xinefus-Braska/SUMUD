@@ -277,35 +277,27 @@ class SUCombatBaseHandler(DefaultScript):
         combathandler_key = kwargs.pop("key", "combathandler")
 
         # Check if `obj` already has a combat handler
-        combathandler = obj.ndb.combathandler #obj.scripts.get(combathandler_key).first()
+        combathandler = obj.ndb.combathandler
                 
         if combathandler:
-            #print(combathandler, "handler already exists for", obj)
-
             if target:
                 # Ensure target is added to the same handler
-                #print("Adding", target, "to:", obj, "handler")
                 target_combathandler = obj.ndb.combathandler #combathandler
-                #print(target, "has a handler, it is: ", target_combathandler)
             
                 if target_combathandler:
-            
                     if combathandler != target_combathandler:
                         # Merge both combat handlers into one (use `obj`'s handler)
                         target.ndb.combathandler = combathandler
-                        #print("Merging ", target, "handler to ", obj, "handler")
-            
                 else:
                     # Target doesn't have a handler; assign the same handler
                     target.ndb.combathandler = combathandler
-                    #print(target, "has no handler, assigning to: ", combathandler)
             
             return combathandler
         
         # If no handler exists for `obj`, check if `target` has one
         if target:
             
-            target_combathandler = target.ndb.combathandler #target.scripts.get(combathandler_key).first()
+            target_combathandler = target.ndb.combathandler
             
             if target_combathandler:
                 print(target_combathandler, "handler already exists for", target)
