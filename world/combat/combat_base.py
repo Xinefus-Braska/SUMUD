@@ -310,6 +310,7 @@ class SUCombatBaseHandler(DefaultScript):
             cls,  # Use SUCombatTwitchHandler as the class
             key=combathandler_key,
             obj=obj,
+            interval=5,
             persistent=True,
             autostart=True,
             **kwargs,

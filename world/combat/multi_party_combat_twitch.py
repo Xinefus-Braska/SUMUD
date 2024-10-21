@@ -190,6 +190,9 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         """
         return self.disadvantage_against.get(target, False)
 
+    def at_repeat(self):
+        self.process_queue()
+
     def queue_action(self, action_dict, combatant):
         """
         Queue an action for the given combatant in the shared action queue.
@@ -225,13 +228,14 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
 
         # Sort the queue by time_to_act to ensure the soonest actions are executed first
         self.db.action_queue.sort(key=lambda x: x["time_to_act"])
-
+        '''
         # If delay > 0, schedule the next action using at_repeat
         if dt > 0:
             print(f"Scheduling process_queue in {dt} seconds.")
             self.at_start(interval=dt, repeats=1, callback=self.process_queue)
         else:
             self.process_queue()
+        '''
 
     def process_queue(self):
         """
@@ -255,7 +259,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             
             # Execute the action
             self.execute_next_action(action_dict, combatant)
-
+        '''
         # If there are still actions in the queue, re-schedule the next one based on the next dt
         if self.db.action_queue:
             next_action_dict = self.db.action_queue[0]
@@ -263,6 +267,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             next_dt = max(0, next_action_dict["time_to_act"] - time.time())
             print(f"Rescheduling process_queue in {next_dt} seconds.")
             self.at_repeat(interval=next_dt, repeats=1, callback=self.process_queue)
+        '''
 
     def execute_next_action(self, action_dict, combatant):
         """
