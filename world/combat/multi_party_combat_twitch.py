@@ -533,6 +533,123 @@ class CmdLook(default_cmds.CmdLook, _BaseTwitchCombatCommand):
             maxwidth = max(display_len(line) for line in txt.strip().split("\n"))
             self.msg(f"|r{pad(' Combat Status ', width=maxwidth, fillchar='-')}|n\n{txt}")
 
+class CmdStunt(_BaseTwitchCombatCommand):
+    """
+    Perform a combat stunt, that boosts an ally against a target, or
+    foils an enemy, giving them disadvantage against an ally.
+
+    Usage:
+        boost [ability] <recipient> <target>
+        foil [ability] <recipient> <target>
+        boost [ability] <target>       (same as boost me <target>)
+        foil [ability] <target>        (same as foil <target> me)
+    
+    Example:
+        boost STR me Goblin
+        boost DEX Goblin
+        foil STR Goblin me
+        foil INT Goblin
+        boost INT Wizard Goblin
+    """
+    key = "stunt"
+    aliases = (
+        "boost",
+        "foil",
+    )
+    help_category = "combat"
+
+    def parse(self):
+        args = self.args
+
+        if not args or " " not in args:
+            self.msg("Usage: <ability> <recipient> <target>")
+            raise InterruptCommand()
+
+        advantage = self.cmdname != "foil"
+
+        # extract data from the input
+
+        stunt_type, recipient, target = None, None, None
+
+        stunt_type, *args = args.split(None, 1)
+        if stunt_type:
+            stunt_type = stunt_type.strip().lower()
+
+        args = args[0] if args else ""
+
+        recipient, *args = args.split(None, 1)
+        target = args[0] if args else None
+
+        # validate input and try to guess if not given
+
+        # ability is requried
+        if not stunt_type or stunt_type not in ABILITY_REVERSE_MAP:
+            self.msg(
+                f"'{stunt_type}' is not a valid ability. Pick one of"
+                f" {', '.join(ABILITY_REVERSE_MAP.keys())}."
+            )
+            raise InterruptCommand()
+
+        if not recipient:
+            self.msg("Must give at least a recipient or target.")
+            raise InterruptCommand()
+
+        if not target:
+            # something like `boost str target`
+            target = recipient if advantage else "me"
+            recipient = "me" if advantage else recipient
+
+        # if we still have None:s at this point, we can't continue
+        if None in (stunt_type, recipient, target):
+            self.msg("Both ability, recipient and target of stunt must be given.")
+            raise InterruptCommand()
+
+        # save what we found so it can be accessed from func()
+        self.advantage = advantage
+        self.stunt_type = ABILITY_REVERSE_MAP[stunt_type]
+        self.recipient = recipient.strip()
+        self.target = target.strip()
+
+
+    def func(self):
+        target = self.caller.search(self.target)
+        if not target:
+            return
+        recipient = self.caller.search(self.recipient)
+        if not recipient:
+            return
+
+        combathandler = self.get_or_create_combathandler(target)
+
+        combathandler.queue_action(
+            {
+                "key": "stunt",
+                "recipient": recipient,
+                "target": target,
+                "advantage": self.advantage,
+                "stunt_type": self.stunt_type,
+                "defense_type": self.stunt_type,
+                "dt": 3,
+            },
+        )
+        combathandler.msg("$You() prepare a stunt!", self.caller)
+
+class CmdHold(_BaseTwitchCombatCommand):
+    """
+    Hold back your blows, doing nothing.
+
+    Usage:
+        hold
+
+    """
+
+    key = "hold"
+
+    def func(self):
+        combathandler = self.get_or_create_combathandler()
+        combathandler.queue_action({"key": "hold"})
+        combathandler.msg("$You() $conj(hold) back, doing nothing.", self.caller)
+
 class TwitchCombatCmdSet(CmdSet):
     """
     Add to character, to be able to attack others in a twitch-style way.
@@ -542,10 +659,10 @@ class TwitchCombatCmdSet(CmdSet):
 
     def at_cmdset_creation(self):
         self.add(CmdAttack())
-        #self.add(CmdHold())
-        #self.add(CmdStunt())
-        #self.add(CmdUseItem())
-        #self.add(CmdWield())
+        self.add(CmdHold())
+        self.add(CmdStunt())
+        self.add(CmdUseItem())
+        self.add(CmdWield())
 
 class TwitchLookCmdSet(CmdSet):
     """
