@@ -34,7 +34,6 @@ from evennia.settings_default import *
 # This is the name of your game. Make it catchy!
 SERVERNAME = "SUMUD"
 
-
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
 ######################################################################
@@ -42,6 +41,11 @@ try:
     from server.conf.secret_settings import *
 except ImportError:
     print("secret_settings.py file not found or failed to import.")
+
+# Disable Django's debug mode
+DEBUG = False
+# Disable the in-game equivalent
+IN_GAME_ERRORS = False
 
 # A list of ports the Evennia telnet server listens on Can be one or many.
 TELNET_PORTS = [8002]
@@ -80,13 +84,35 @@ WEBSERVER_PORTS = [(8003, 8007)]
 # front-facing client's sake.
 WEBSOCKET_CLIENT_PORT = 8004
 # Set the FULL URI for the websocket, including the scheme
-WEBSOCKET_CLIENT_URL = "wss://jbhlmh.ca/ws"
+#WEBSOCKET_CLIENT_URL = "wss://mud.jbhlmh.ca/ws"
 # The Server opens an AMP port so that the portal can
 # communicate with it. This is an internal functionality of Evennia, usually
 # operating between two processes on the same machine. You usually don't need to
 # change this unless you cannot use the default AMP port/host for
 # whatever reason.
 AMP_PORT = 8008
+# This is a security setting protecting against host poisoning
+# attacks.  It defaults to allowing all. In production, make
+# sure to change this to your actual host addresses/IPs.
+ALLOWED_HOSTS = ['192.168.88.50', 'mud.jbhlmh.ca', '192.168.88.20', '192.168.88.10']
+# The url address to your server, like mymudgame.com. This should be the publicly
+# visible location. This is used e.g. on the web site to show how you connect to the
+# game over telnet. Default is localhost (only on your machine).
+SERVER_HOSTNAME = "mud.jbhlmh.ca"
+# This needs to be set to your website address for django or you'll receive a
+# CSRF error when trying to log on to the web portal
+CSRF_TRUSTED_ORIGINS = ['https://mud.jbhlmh.ca']
+
+# Discord integration support
+DISCORD_ENABLED = True
+# Local time zone for this installation. All choices can be found here:
+# http://www.postgresql.org/docs/8.0/interactive/datetime-keywords.html#DATETIME-TIMEZONE-SET-TABLE
+TIME_ZONE = "EST"
+
+# Connection Stuffs
+
+# Enable/Disable new accounts
+NEW_ACCOUNT_REGISTRATION_ENABLED = False
 # Different Multisession modes allow a player (=account) to connect to the
 # game simultaneously with multiple clients (=sessions).
 #  0 - single session per account (if reconnecting, disconnect old session)
@@ -108,7 +134,7 @@ MAX_NR_SIMULTANEOUS_PUPPETS = 3
 # a legacy MUD, where there is no difference between account and character.
 AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
 # BASE_ACCOUNT_TYPECLASS = 
-CHARGEN_MENU = "world.character.chargen"
+#CHARGEN_MENU = "world.character.chargen"
 BASE_CHARACTER_TYPECLASS = "world.character.characters.SUCharacter"
 BASE_ROOM_TYPECLASS = "world.rooms.rooms.SURoom"
 # BASE_OBJECT_TYPECLASS = 
@@ -119,27 +145,6 @@ BASE_ROOM_TYPECLASS = "world.rooms.rooms.SURoom"
 # mimic a legacy mud with minimal difference between Account and Character. Disable
 # this and AUTO_PUPPET to get a chargen/character select screen on login.
 AUTO_PUPPET_ON_LOGIN = False
-# Discord integration support
-DISCORD_ENABLED = True
-# Local time zone for this installation. All choices can be found here:
-# http://www.postgresql.org/docs/8.0/interactive/datetime-keywords.html#DATETIME-TIMEZONE-SET-TABLE
-TIME_ZONE = "EST"
-
-# Connection Stuffs
-
-# Enable/Disable new accounts
-NEW_ACCOUNT_REGISTRATION_ENABLED = False
-# This is a security setting protecting against host poisoning
-# attacks.  It defaults to allowing all. In production, make
-# sure to change this to your actual host addresses/IPs.
-ALLOWED_HOSTS = ['192.168.88.50', 'mud.jbhlmh.ca']
-# The url address to your server, like mymudgame.com. This should be the publicly
-# visible location. This is used e.g. on the web site to show how you connect to the
-# game over telnet. Default is localhost (only on your machine).
-SERVER_HOSTNAME = "mud.jbhlmh.ca"
-# This needs to be set to your website address for django or you'll receive a
-# CSRF error when trying to log on to the web portal
-CSRF_TRUSTED_ORIGINS = ['https://mud.jbhlmh.ca']
 
 # XYZGrid stuffs
 # EXTRA_LAUNCHER_COMMANDS['xyzgrid'] = 'evennia.contrib.grid.xyzgrid.launchcmd.xyzcommand'
@@ -165,9 +170,9 @@ GAME_INDEX_LISTING = {
         "Play and live like one of your favourite manga/anime characters! Power-up \n"
         "and become the strongest in the Universe in whatever way you like! Be your \n"
         "favourite hero or pick and chose something unique!",
-    'telnet_hostname': '',            
-    'telnet_port': '',                     
-    'web_client_url': '',   
-    'game_website': 'http://mud.morchronium.com:7003/',
+    'telnet_hostname': 'mud.jbhlmh.ca',            
+    'telnet_port': '8002',                     
+    'web_client_url': 'mud.jbhlmh.ca/',   
+    'game_website': 'mud.jbhlmh.ca/',
     # 'game_name': 'MyGame',  # set only if different than settings.SERVERNAME
 }
