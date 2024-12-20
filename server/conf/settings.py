@@ -84,7 +84,7 @@ WEBSERVER_PORTS = [(8003, 8007)]
 # front-facing client's sake.
 WEBSOCKET_CLIENT_PORT = 8004
 # Set the FULL URI for the websocket, including the scheme
-#WEBSOCKET_CLIENT_URL = "wss://mud.jbhlmh.ca/ws"
+WEBSOCKET_CLIENT_URL = "wss://mud.jbhlmh.ca/ws"
 # The Server opens an AMP port so that the portal can
 # communicate with it. This is an internal functionality of Evennia, usually
 # operating between two processes on the same machine. You usually don't need to
