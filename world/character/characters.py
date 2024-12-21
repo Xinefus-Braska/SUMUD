@@ -58,9 +58,22 @@ class LivingMixin:
     def at_attacked(self, attacker, **kwargs):
         """
         Called when being attacked / combat starts.
-
         """
-        pass
+        #print(f"'{self.key}' called at_attacked")
+        from world.combat.multi_party_combat_twitch import _BaseTwitchCombatCommand as Twitch
+        
+        target = attacker
+        # Get or create a shared combat handler for this combat
+        combathandler = Twitch.get_or_create_combathandler(self, target=target)
+        
+        # Add the caller (the player or NPC initiating combat) and the target to the combat handler
+        combathandler.add_combatant(self)
+        combathandler.add_combatant(target)
+        
+        # we use a fixed dt of 3 here, to mimic Diku style; one could also picture
+        # attacking at a different rate, depending on skills/weapon etc.
+        combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": False}, self)
+        #combathandler.msg(f"$You() $conj(join) battle with $You({target.key})!", self)
 
     def at_damage(self, damage, attacker=None):
         """

@@ -40,7 +40,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
     advantage_against = AttributeProperty(dict)
     disadvantage_against = AttributeProperty(dict)
     action_dict = AttributeProperty(dict)
-    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 3, "repeat": True})
+    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": True})
 
     def at_script_creation(self):
         """
@@ -216,7 +216,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             return
 
         # Handle the delay (dt) if it exists in the action dict
-        dt = action_dict.get("dt", 0)  # Default to 0 delay if not provided
+        dt = action_dict.get("dt", 1)  # Default to 1 delay if not provided
         time_to_act = time.time() + dt  # Current time + delay
 
         # Add the action to the shared queue
@@ -242,20 +242,18 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         Periodically process the action queue to execute actions whose delay has expired.
         """
     
-        print("Processing queue...")
         current_time = time.time()
         if not self.db.action_queue:
             return
         
-        print(f"Processing action queue at {current_time}. Current queue: {self.db.action_queue}")
-
         # Iterate over the queue and execute actions whose time_to_act has passed
         while self.db.action_queue and self.db.action_queue[0]["time_to_act"] <= current_time:
             next_action = self.db.action_queue.pop(0)
             combatant = next_action["combatant"]
             action_dict = next_action["action_dict"]
+            target = next_action["action_dict"].get("target", None)
 
-            print(f"Executing action '{action_dict['key']}' for combatant '{combatant.key}'.")
+            print(f"'{combatant.key}' -> '{action_dict['key']}' -> '{target}'.")
             
             # Execute the action
             self.execute_next_action(action_dict, combatant)
@@ -283,18 +281,19 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             if action.can_use():
                 action.execute()
                 action.post_execute()
-                print(f"Executed action '{action_dict['key']}' for combatant '{combatant.key}'.")
+                #print(f"'{combatant.key}' execute_next_action '{action_dict['key']}'.")
             else:
                 combatant.msg(f"Action {action_dict['key']} cannot be used right now.")
         else:
             print(f"{combatant}: Unknown action '{action_dict['key']}'.")
         # Re-queue the action if it is set to repeat
         if action_dict.get("repeat", True):
-            print(f"Re-queuing action '{action_dict['key']}' for combatant '{combatant.key}'.")
             self.action_dict = action_dict
+            #print(f"'{combatant.key}' repeat queue_action '{action_dict['key']}'.")
             self.queue_action(self.action_dict, combatant)
-        else:
+        elif action_dict.get("repeat", False):
             self.action_dict = self.fallback_action_dict
+            #print(f"'{combatant.key}' queue fallback action '{action_dict['key']}'.")
             self.queue_action(self.action_dict, combatant)
 
         # Check if combat should continue

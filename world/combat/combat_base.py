@@ -252,7 +252,7 @@ class SUCombatBaseHandler(DefaultScript):
     }
 
     # fallback action if not selecting anything
-    fallback_action_dict = AttributeProperty({"key": "hold"}, autocreate=False)
+    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": True})
 
     @classmethod
     def get_or_create_combathandler(cls, obj, target=None, **kwargs):
@@ -282,14 +282,17 @@ class SUCombatBaseHandler(DefaultScript):
         if combathandler:
             if target:
                 # Ensure target is added to the same handler
+                #print(f"Handler already exists for {obj}. Merging with handler for {target}.")
                 target_combathandler = obj.ndb.combathandler #combathandler
             
                 if target_combathandler:
                     if combathandler != target_combathandler:
                         # Merge both combat handlers into one (use `obj`'s handler)
+                        #print(f"Merging {target_combathandler} with {combathandler}.")
                         target.ndb.combathandler = combathandler
                 else:
                     # Target doesn't have a handler; assign the same handler
+                    #print(f"Assigning {combathandler} to {target}.")
                     target.ndb.combathandler = combathandler
             
             return combathandler
@@ -300,9 +303,9 @@ class SUCombatBaseHandler(DefaultScript):
             target_combathandler = target.ndb.combathandler
             
             if target_combathandler:
-                print(target_combathandler, "handler already exists for", target)
+                #print(target_combathandler, "handler already exists for", target)
                 obj.ndb.combathandler = target_combathandler
-                print(obj, "merging with handler for", target)
+                #print(obj, "merging with handler for", target)
                 return target_combathandler
         
         # No handler exists for either, create a new one

@@ -100,17 +100,7 @@ class SUNPC(LivingMixin, DefaultCharacter):
         Called when being attacked and combat starts.
 
         """
-        from world.combat.multi_party_combat_twitch import _BaseTwitchCombatCommand as Twitch
-        
-        target = attacker
-        # Get or create a shared combat handler for this combat
-        combathandler = Twitch.get_or_create_combathandler(self, target=target)
-        
-        # Add the caller (the player or NPC initiating combat) and the target to the combat handler
-        combathandler.add_combatant(self)
-        combathandler.add_combatant(target)
-
-        SUMob.ai_combat(self)
+        pass
 
     def ai_next_action(self, **kwargs):
         """
@@ -281,20 +271,41 @@ class SUMob(SUNPC):
         """
         pass
 
+    def at_attacked(self, attacker, **kwargs):
+        """
+        Called when being attacked and combat starts.
+
+        """
+        #print(f"'{self.key}' called at_attacked")
+
+        from world.combat.multi_party_combat_twitch import _BaseTwitchCombatCommand as Twitch
+        
+        target = attacker
+        # Get or create a shared combat handler for this combat
+        combathandler = Twitch.get_or_create_combathandler(self, target=target)
+        
+        # Add the caller (the player or NPC initiating combat) and the target to the combat handler
+        combathandler.add_combatant(self)
+        combathandler.add_combatant(target)
+
+        SUMob.ai_combat(self)
+
     def ai_combat(self):
         """
         Manage the combat/combat state of the mob.
 
         """
-        #print(f"ai_combat has been called!")
+        #print(f"ai_combat has been called! by '{self.key}'")
 
         if combathandler := self.ndb.combathandler:
             # already in combat
+            #print(f"'{self}' already in combat!")
             allies, enemies = combathandler.get_sides(self)
             #action = self.ai.random_probability(self.combat_probabilities)
 
-            # NPC delay (dt) set by default to 1 second. 
-            combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 1, "repeat": True}, self)
+            # NPC delay (dt) set by default to 1 second.
+            #print(f"adding action to queue")
+            combathandler.queue_action({"key": "attack", "target": choice(enemies), "dt": 1, "repeat": False}, self)
             #self.execute_cmd(f"say {choice(enemies)} is attacking me!")
             '''
             match action:
@@ -330,8 +341,8 @@ class SUMob(SUNPC):
             print(f"Roam has been called!")
         else:
             target = choice(targets)
+            print(f"'{target.key}' executing attack command!")
             self.execute_cmd(f"attack {target.key}")
-            print(f"execute attack has been called!")
 
     def ai_roam(self):
         """
