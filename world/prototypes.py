@@ -52,16 +52,19 @@ See the `spawn` command and `evennia.prototypes.spawner.spawn` for more info.
 ## the variable name as `prototype_key` and
 ## simple Attributes
 
-# from random import randint
-#
-# GOBLIN = {
-# "key": "goblin grunt",
-# "health": lambda: randint(20,30),
+from random import randint
+#from world.character.npc import SUMob
+
+GOBLIN = {
+ "key": "ggrunt",
+ "typeclass": "world.character.npc.SUMob",
+ "hp": 30,
+ "hp_max": 30,
 # "resists": ["cold", "poison"],
 # "attacks": ["fists"],
 # "weaknesses": ["fire", "light"],
-# "tags": = [("greenskin", "monster"), ("humanoid", "monster")]
-# }
+ "tags": [("greenskin", "monster"), ("humanoid", "monster")]
+ }
 #
 # GOBLIN_WIZARD = {
 # "prototype_parent": "GOBLIN",
