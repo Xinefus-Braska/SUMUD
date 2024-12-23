@@ -371,43 +371,6 @@ class CmdTalk(SUCommand):
             return
         target.at_talk(self.caller)
 
-class CmdDiagnose(Command):
-        """
-        see how hurt your are
-
-        Usage: 
-          diagnose [target]
-
-        This will give an estimate of the target's health. Also
-        the target's prompt will be updated. 
-        """ 
-        key = "diagnose"
-        
-        def func(self):
-            if not self.args:
-                target = self.caller
-            else:
-                target = self.caller.search(self.args)
-                if not target:
-                    return
-            # try to get health, mana and stamina
-            hp = target.db.hp
-
-            if hp is None:
-                # Attributes not defined          
-                self.caller.msg("Not a valid target!")
-                return 
-             
-            text = f"You diagnose {target} as having {hp} health."
-            healthbar = display_meter(target.db.hp,target.db.hp_max)
-            self.caller.msg(text, prompt=healthbar)
-
-class CmdDebug(Command):
-    key = "debug"
-
-    def func(self):
-        self.caller.msg("Debug command executed.")
-
 class CmdScore(SUCommand):
     """
     Score sheet for a character
@@ -468,13 +431,104 @@ class CmdScore(SUCommand):
         form.map(tables={"A": tableA })
         self.msg(str(form))
 
-class SUCmdSet(CmdSet):
+class CmdDiagnose(Command):
+        """
+        see how hurt your are
+
+        Usage: 
+          diagnose [target]
+
+        This will give an estimate of the target's health. Also
+        the target's prompt will be updated. 
+        """ 
+        key = "diagnose"
+        locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
+        
+        def func(self):
+            if not self.args:
+                target = self.caller
+            else:
+                target = self.caller.search(self.args)
+                if not target:
+                    return
+            # try to get health, mana and stamina
+            hp = target.db.hp
+
+            if hp is None:
+                # Attributes not defined          
+                self.caller.msg("Not a valid target!")
+                return 
+             
+            text = f"You diagnose {target} as having {hp} health."
+            healthbar = display_meter(target.db.hp,target.db.hp_max)
+            self.caller.msg(text, prompt=healthbar)
+
+class CmdDebug(Command):
+    key = "debug"
+    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
+
+    def func(self):
+        self.caller.msg("Debug command executed.")
+
+class CmdRestore(Command):
+    """
+    Restore health for all puppets or a specific character/object.
+
+    Usage:
+        restore
+        restore <target>
+
+    Without arguments, restores all puppeted characters' HP to their maximum.
+    With a target, restores the HP of the specified object/character.
+
+    Note:
+        This command can only be used by administrators.
+    """
+
+    key = "restore"
+    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
+
+    def func(self):
+        """
+        Command functionality.
+        """
+        if not self.args:
+            # Restore all puppets
+            puppets = [
+                obj for obj in self.caller.location.contents
+                if hasattr(obj, "account") and obj.account
+            ]
+            if not puppets:
+                self.caller.msg("No puppeted characters found to restore.")
+                return
+
+            for puppet in puppets:
+                if hasattr(puppet.db, "hp") and hasattr(puppet.db, "hp_max"):
+                    puppet.db.hp = puppet.db.hp_max
+                    puppet.msg("Your HP has been fully restored.")
+            self.caller.msg("All puppeted characters have been restored to full HP.")
+        else:
+            # Restore a specific target
+            target = self.caller.search(self.args.strip())
+            if not target:
+                self.caller.msg(f"Could not find a target named '{self.args.strip()}'.")
+                return
+
+            if hasattr(target.db, "hp") and hasattr(target.db, "hp_max"):
+                target.db.hp = target.db.hp_max
+                target.msg("Your HP has been fully restored.")
+                self.caller.msg(f"{target.key}'s HP has been fully restored.")
+            else:
+                self.caller.msg(f"{target.key} does not have HP attributes to restore.")
+
+
+class SUCharacterCmdSet(CmdSet):
     """
     Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
 
     """
 
-    key = "SU"
+    key = "SUCharacter"
 
     def at_cmdset_creation(self):
         self.add(CmdInventory())
@@ -482,6 +536,16 @@ class SUCmdSet(CmdSet):
         self.add(CmdRemove())
         self.add(CmdGive())
         self.add(CmdTalk())
+        self.add(CmdScore())
+
+class SUAdminCmdSet(CmdSet):
+    """
+    Admin commands
+    """
+
+    key = "SUAdmin"
+
+    def at_cmdset_creation(self):
         self.add(CmdDiagnose())
         self.add(CmdDebug())
-        self.add(CmdScore())
+        self.add(CmdRestore())
