@@ -431,6 +431,50 @@ class CmdScore(SUCommand):
         form.map(tables={"A": tableA })
         self.msg(str(form))
 
+from evennia import Command
+from evennia import create_script
+
+class CmdRest(Command):
+    """
+    Start the resting script for the character.
+
+    Usage:
+        rest
+    """
+    key = "rest"
+
+    def func(self):
+        # Check if the caller is a character
+        if not self.caller or not hasattr(self.caller, "db"):
+            self.caller.msg("|rYou are not a valid target for healing.|n")
+            return
+
+        # Check if the healing script is already running
+        if self.caller.scripts.has("healing_script"):
+            self.caller.msg("|yHealing is already in progress.|n")
+            return
+
+        # Start the healing script
+        create_script("world.scripts.character_script.RestingScript", obj=self.caller)
+        self.caller.msg("|gResting has started. You will gain HP periodically until fully healed.|n")
+
+class SUCharacterCmdSet(CmdSet):
+    """
+    Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
+
+    """
+
+    key = "SUCharacter"
+
+    def at_cmdset_creation(self):
+        self.add(CmdInventory())
+        self.add(CmdWieldOrWear())
+        self.add(CmdRemove())
+        self.add(CmdGive())
+        self.add(CmdTalk())
+        self.add(CmdScore())
+        self.add(CmdRest())
+
 class CmdDiagnose(Command):
         """
         see how hurt your are
@@ -506,6 +550,7 @@ class CmdRestore(Command):
                 if hasattr(puppet.db, "hp") and hasattr(puppet.db, "hp_max"):
                     puppet.db.hp = puppet.db.hp_max
                     puppet.msg("Your HP has been fully restored.")
+                    SUCharacter.update_stats(puppet)
             self.caller.msg("All puppeted characters have been restored to full HP.")
         else:
             # Restore a specific target
@@ -517,26 +562,10 @@ class CmdRestore(Command):
             if hasattr(target.db, "hp") and hasattr(target.db, "hp_max"):
                 target.db.hp = target.db.hp_max
                 target.msg("Your HP has been fully restored.")
+                SUCharacter.update_stats(puppet)
                 self.caller.msg(f"{target.key}'s HP has been fully restored.")
             else:
                 self.caller.msg(f"{target.key} does not have HP attributes to restore.")
-
-
-class SUCharacterCmdSet(CmdSet):
-    """
-    Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
-
-    """
-
-    key = "SUCharacter"
-
-    def at_cmdset_creation(self):
-        self.add(CmdInventory())
-        self.add(CmdWieldOrWear())
-        self.add(CmdRemove())
-        self.add(CmdGive())
-        self.add(CmdTalk())
-        self.add(CmdScore())
 
 class SUAdminCmdSet(CmdSet):
     """

@@ -339,3 +339,9 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         #hp_max = self.db.hp_max if hasattr(self, "db") and self.db.hp_max else "?"
         prompt_text = display_meter(self.hp,self.hp_max)
         self.msg(prompt=prompt_text)
+
+    def update_stats(self):
+        """
+        Update the stats of the character.
+        """
+        self.update_prompt()
