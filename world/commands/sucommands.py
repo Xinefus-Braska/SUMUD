@@ -1,11 +1,14 @@
-from evennia import CmdSet, Command, InterruptCommand
+from evennia import CmdSet, Command, InterruptCommand, search_object
 from evennia.utils.evmenu import EvMenu
 from evennia.utils.utils import inherits_from
 
 from world.utils.enums import WieldLocation
 from world.character.equipment import EquipmentError
-from world.character.npc import SUTalkativeNPC
+from world.character.npc import SUTalkativeNPC, SUMob
 from world.utils.utils import get_obj_stats
+from evennia.contrib.rpg.health_bar import display_meter
+from world.character.characters import SUCharacter
+from evennia.utils import evform, evtable
 
 class SUCommand(Command):
     """
@@ -19,6 +22,14 @@ class SUCommand(Command):
 
     def parse(self):
         self.args = self.args.strip()
+    
+    def at_post_cmd(self):
+        """
+        Called after every command executed by the character.
+        """
+        super().at_post_cmd()
+        if isinstance(self.caller, SUCharacter) and hasattr(self.caller, "update_prompt"):
+            self.caller.update_prompt()
 
 class CmdInventory(SUCommand):
     """
@@ -360,6 +371,103 @@ class CmdTalk(SUCommand):
             return
         target.at_talk(self.caller)
 
+class CmdDiagnose(Command):
+        """
+        see how hurt your are
+
+        Usage: 
+          diagnose [target]
+
+        This will give an estimate of the target's health. Also
+        the target's prompt will be updated. 
+        """ 
+        key = "diagnose"
+        
+        def func(self):
+            if not self.args:
+                target = self.caller
+            else:
+                target = self.caller.search(self.args)
+                if not target:
+                    return
+            # try to get health, mana and stamina
+            hp = target.db.hp
+
+            if hp is None:
+                # Attributes not defined          
+                self.caller.msg("Not a valid target!")
+                return 
+             
+            text = f"You diagnose {target} as having {hp} health."
+            healthbar = display_meter(target.db.hp,target.db.hp_max)
+            self.caller.msg(text, prompt=healthbar)
+
+class CmdDebug(Command):
+    key = "debug"
+
+    def func(self):
+        self.caller.msg("Debug command executed.")
+
+class CmdScore(SUCommand):
+    """
+    Score sheet for a character
+    """
+    key = "score"
+    aliases = "sc"
+
+    def func(self):
+        if self.caller.check_permstring("Developer"): 
+            if self.args:
+                # Use a global search to find the character (case-insensitive search by default)
+                target_name = self.args.strip()
+                potential_targets = search_object(target_name)
+        
+                # Narrow down to the first valid character target
+                target = None
+                for obj in potential_targets:
+                    if isinstance(obj, (SUCharacter, SUMob)):
+                        target = obj
+                        break
+                    elif not target:
+                        self.caller.msg(f"Could not find a valid character or mob named '{target_name}'.")
+                        return
+            else:
+                target = self.caller    
+        else:
+            target = self.caller
+
+        # create a new form from the template - using the python path
+        form = evform.EvForm("world.forms.scoreform")
+        if target.is_typeclass("world.character.characters.SUCharacter"):
+            account = target.account.name
+            level = int(target.level)
+        else:
+            account = "NPC"
+            level = "N/A"
+
+        # add data to each tagged form cell
+        form.map(cells={1: target.name,
+                        2: account,
+                        3: "Something",
+                        4: target.permissions,
+                        5: level,
+                        6: int(target.hp),
+                        7: int(target.hp_max)
+                        },
+                        align="r")
+
+        # create the EvTables
+        tableA = evtable.EvTable("","Base","Mod","Total",
+                            table=[["STR", "DEX", "INT"],
+                            [int(target.strength), int(target.dexterity), int(target.intelligence)],
+                            [5, 5, 5],
+                            [5, 5, 5]],
+                            border="incols")
+        
+        # add the tables to the proper ids in the form
+        form.map(tables={"A": tableA })
+        self.msg(str(form))
+
 class SUCmdSet(CmdSet):
     """
     Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
@@ -374,3 +482,6 @@ class SUCmdSet(CmdSet):
         self.add(CmdRemove())
         self.add(CmdGive())
         self.add(CmdTalk())
+        self.add(CmdDiagnose())
+        self.add(CmdDebug())
+        self.add(CmdScore())

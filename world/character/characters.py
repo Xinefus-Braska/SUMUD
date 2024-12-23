@@ -11,6 +11,7 @@ from evennia.utils.utils import lazy_property
 from world.utils.rules import dice
 from world.character.equipment import EquipmentError, EquipmentHandler
 from world.rooms.quests import SUQuestHandler
+from evennia.contrib.rpg.health_bar import display_meter
 
 class LivingMixin:
 
@@ -328,5 +329,13 @@ class SUCharacter(LivingMixin, DefaultCharacter):
                 pass
 
         # update hp
-        self.hp_max = max(self.max_hp + 1, dice.roll(f"{self.level}d8"))
+        self.hp_max = max(self.hp_max + 1, dice.roll(f"{self.level}d8"))
 
+    def update_prompt(self):
+        """
+        Updates the prompt displayed to the player.
+        """
+        #hp = self.db.hp if hasattr(self, "db") and self.db.hp else "?"
+        #hp_max = self.db.hp_max if hasattr(self, "db") and self.db.hp_max else "?"
+        prompt_text = display_meter(self.hp,self.hp_max)
+        self.msg(prompt=prompt_text)
