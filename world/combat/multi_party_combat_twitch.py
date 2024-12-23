@@ -40,7 +40,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
     advantage_against = AttributeProperty(dict)
     disadvantage_against = AttributeProperty(dict)
     action_dict = AttributeProperty(dict)
-    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": True})
+    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": False})
 
     def at_script_creation(self):
         """
@@ -257,15 +257,6 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             
             # Execute the action
             self.execute_next_action(action_dict, combatant)
-        '''
-        # If there are still actions in the queue, re-schedule the next one based on the next dt
-        if self.db.action_queue:
-            next_action_dict = self.db.action_queue[0]
-            dt = max(0, next_action_dict["time_to_act"] - time.time())  # Calculate remaining delay time
-            next_dt = max(0, next_action_dict["time_to_act"] - time.time())
-            print(f"Rescheduling process_queue in {next_dt} seconds.")
-            self.at_repeat(interval=next_dt, repeats=1, callback=self.process_queue)
-        '''
 
     def execute_next_action(self, action_dict, combatant):
         """
@@ -434,7 +425,7 @@ class CmdAttack(_BaseTwitchCombatCommand):
         # attacking at a different rate, depending on skills/weapon etc.
         # Would need to call on the stats of the caller to determine dt of attack. 
         
-        combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": True}, self.caller)
+        combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": False}, self.caller)
         combathandler.msg(f"$You() $conj(attack) $You({target})!", self.caller)
 
 class CmdUseItem(_BaseTwitchCombatCommand):

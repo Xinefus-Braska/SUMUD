@@ -252,7 +252,7 @@ class SUCombatBaseHandler(DefaultScript):
     }
 
     # fallback action if not selecting anything
-    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": True})
+    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": False})
 
     @classmethod
     def get_or_create_combathandler(cls, obj, target=None, **kwargs):
@@ -313,7 +313,7 @@ class SUCombatBaseHandler(DefaultScript):
             cls,  # Use SUCombatTwitchHandler as the class
             key=combathandler_key,
             obj=obj,
-            interval=5,
+            interval=2,
             persistent=True,
             autostart=True,
             **kwargs,

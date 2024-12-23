@@ -52,7 +52,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
     disadvantage_against = AttributeProperty(dict)
 
     action_dict = AttributeProperty(dict)
-    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": True})
+    fallback_action_dict = AttributeProperty({"key": "attack", "dt": 1, "repeat": False})
     # stores the current ticker reference, so we can manipulate it later
     current_ticker_ref = AttributeProperty(None)
 
@@ -213,6 +213,9 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             # not a repeating action, use the fallback (normally the original attack)
             self.action_dict = self.fallback_action_dict
             self.queue_action(self.fallback_action_dict)
+        elif action_dict.get("repeat", False):
+            self.action_dict = self.fallback_action_dict
+            self.queue_action(self.action_dict, combatant)
 
         self.check_stop_combat()
 
@@ -331,7 +334,7 @@ class CmdAttack(_BaseTwitchCombatCommand):
         combathandler = self.get_or_create_combathandler(target)
         # we use a fixed dt of 1 here, to mimic Diku style; one could also picture
         # attacking at a different rate, depending on skills/weapon etc.
-        combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": True})
+        combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": False})
         combathandler.msg(f"$You() $conj(attack) $You({target.key})!", self.caller)
 
 class CmdLook(default_cmds.CmdLook, _BaseTwitchCombatCommand):
