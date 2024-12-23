@@ -17,7 +17,6 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 from evennia import default_cmds
 #from evennia.contrib.grid.xyzgrid.commands import XYZGridCmdSet
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
-from world.character.npc import CharCmdSet
 from world.combat.multi_party_combat_twitch import TwitchCombatCmdSet
 from world.commands.sucommands import SUCmdSet
 from world.rooms.quests import CmdQuests
@@ -40,7 +39,6 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         # any commands you add below will overload the default ones.
         #
         self.add(MapDisplayCmdSet)
-        self.add(CharCmdSet)
         self.add(TwitchCombatCmdSet)
         # self.add(XYZGridCmdSet)
         self.add(SUCmdSet)
