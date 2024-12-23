@@ -139,6 +139,7 @@ BASE_CHARACTER_TYPECLASS = "world.character.characters.SUCharacter"
 BASE_ROOM_TYPECLASS = "world.rooms.rooms.SURoom"
 # BASE_OBJECT_TYPECLASS = 
 #PROTOTYPE_MODULES = "world.character.mobprototypes"
+COMMAND_DEFAULT_CLASS = "commands.command.MuxCommand"
 # Whether an account should auto-puppet the last puppeted puppet when logging in. This
 # will only work if the session/puppet combination can be determined (usually
 # MULTISESSION_MODE 0 or 1), otherwise, the player will end up OOC. Use
