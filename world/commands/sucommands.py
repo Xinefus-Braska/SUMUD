@@ -1,56 +1,17 @@
-from evennia import CmdSet, Command, InterruptCommand, search_object
+from evennia import CmdSet, Command, InterruptCommand, default_cmds, search_object, create_script
 from evennia.utils.evmenu import EvMenu
 from evennia.utils.utils import inherits_from
+from commands.command import MuxCommand
 
 from world.utils.enums import WieldLocation
 from world.character.equipment import EquipmentError
 from world.character.npc import SUTalkativeNPC, SUMob
 from world.utils.utils import get_obj_stats
-from evennia.contrib.rpg.health_bar import display_meter
 from world.character.characters import SUCharacter
 from evennia.utils import evform, evtable
+from evennia.contrib.rpg.health_bar import display_meter
 
-class SUCommand(Command):
-    """
-    Base SU command. This is on the form
-
-        command <args>
-
-    where whitespace around the argument(s) are stripped.
-
-    """
-
-    def parse(self):
-        self.args = self.args.strip()
-    
-    def at_post_cmd(self):
-        """
-        Called after every command executed by the character.
-        """
-        super().at_post_cmd()
-        if isinstance(self.caller, SUCharacter) and hasattr(self.caller, "update_prompt"):
-            self.caller.update_prompt()
-
-class CmdInventory(SUCommand):
-    """
-    View your inventory
-
-    Usage:
-      inventory
-
-    """
-
-    key = "inventory"
-    aliases = ("i", "inv")
-
-    def func(self):
-        loadout = self.caller.equipment.display_loadout()
-        backpack = self.caller.equipment.display_backpack()
-        slot_usage = self.caller.equipment.display_slot_usage()
-
-        self.caller.msg(f"{loadout}\n{backpack}\nYou use {slot_usage} equipment slots.")
-
-class CmdWieldOrWear(SUCommand):
+class CmdWieldOrWear(MuxCommand):
     """
     Wield a weapon/shield, or wear a piece of armor or a helmet.
 
@@ -62,7 +23,7 @@ class CmdWieldOrWear(SUCommand):
     was there previously.
 
     """
-
+    use_if_busy = False
     key = "wield"
     aliases = ("wear",)
 
@@ -101,7 +62,7 @@ class CmdWieldOrWear(SUCommand):
             self.caller.msg(f"Returning {current.key} to the backpack.")
         self.caller.msg(self.out_txts[use_slot].format(key=item.key))
 
-class CmdRemove(SUCommand):
+class CmdRemove(MuxCommand):
     """
     Remove a remove a weapon/shield, armor or helmet.
 
@@ -113,7 +74,7 @@ class CmdRemove(SUCommand):
     To remove an item from the backpack, use |wdrop|n instead.
 
     """
-
+    use_if_busy = False
     key = "remove"
     aliases = ("unwield", "unwear")
 
@@ -141,8 +102,321 @@ class CmdRemove(SUCommand):
         caller.equipment.add(item)
         caller.msg(f"You stash {item.key} in your backpack.")
 
-# give / accept menu
+class CmdGive(MuxCommand):
+    """
+    Give item or money to another person. Items need to be accepted before
+    they change hands. Money changes hands immediately with no wait.
 
+    Usage:
+      give <item> to <receiver>
+      give <number of coins> [coins] to receiver
+
+    If item name includes ' to ', surround it in quotes.
+
+    Examples:
+      give apple to ranger
+      give "road to happiness" to sad ranger
+      give 10 coins to ranger
+      give 12 to ranger
+
+    """
+    use_if_busy = False
+    key = "give"
+
+    def parse(self):
+        """
+        Parsing is a little more complex for this command.
+
+        """
+        super().parse()
+        args = self.args
+        if " to " not in args:
+            self.caller.msg(
+                "Usage: give <item> to <recevier>. Specify e.g. '10 coins' to pay money. "
+                "Use quotes around the item name it if includes the substring ' to '. "
+            )
+            raise InterruptCommand
+
+        self.item_name = ""
+        self.coins = 0
+
+        # make sure we can use '...' to include items with ' to ' in the name
+        if args.startswith('"') and args.count('"') > 1:
+            end_ind = args[1:].index('"') + 1
+            item_name = args[:end_ind]
+            _, receiver_name = args.split(" to ", 1)
+        elif args.startswith("'") and args.count("'") > 1:
+            end_ind = args[1:].index("'") + 1
+            item_name = args[:end_ind]
+            _, receiver_name = args.split(" to ", 1)
+        else:
+            item_name, receiver_name = args.split(" to ", 1)
+
+        # a coin count rather than a normal name
+        if " coins" in item_name:
+            item_name = item_name[:-6]
+        if item_name.isnumeric():
+            self.coins = max(0, int(item_name))
+
+        self.item_name = item_name
+        self.receiver_name = receiver_name
+
+    def func(self):
+        caller = self.caller
+
+        receiver = caller.search(self.receiver_name)
+        if not receiver:
+            return
+
+        # giving of coins is always accepted
+
+        if self.coins:
+            current_coins = caller.coins
+            if self.coins > current_coins:
+                caller.msg(f"You only have |y{current_coins}|n coins to give.")
+                return
+            # do transaction
+            caller.coins -= self.coins
+            receiver.coins += self.coins
+            caller.location.msg_contents(
+                f"$You() $conj(give) $You({receiver.key}) {self.coins} coins.",
+                from_obj=caller,
+                mapping={receiver.key: receiver},
+            )
+            return
+
+        # giving of items require acceptance before it happens
+
+        item = caller.search(self.item_name, candidates=caller.equipment.all(only_objs=True))
+        if not item:
+            return
+
+        # testing hook
+        if not item.at_pre_give(caller, receiver):
+            return
+
+        # before we start menus, we must check so either part is not already in a menu,
+        # that would be annoying otherwise
+        if receiver.ndb._evmenu:
+            caller.msg(
+                f"{receiver.get_display_name(looker=caller)} seems busy talking to someone else."
+            )
+            return
+        if caller.ndb._evmenu:
+            caller.msg("Close the current menu first.")
+            return
+
+        # this starts evmenus for both parties
+        EvMenu(
+            receiver, {"node_receive": node_receive, "node_end": node_end}, item=item, giver=caller
+        )
+        EvMenu(caller, {"node_give": node_give, "node_end": node_end}, item=item, receiver=receiver)
+
+class CmdTalk(MuxCommand):
+    """
+    Start a conversations with shop keepers and other NPCs in the world.
+
+    Args:
+      talk <npc>
+
+    """
+    use_if_busy = False
+    key = "talk"
+
+    def func(self):
+        target = self.caller.search(self.args)
+        if not target:
+            return
+
+        if not inherits_from(target, SUTalkativeNPC):
+            self.caller.msg(
+                f"{target.get_display_name(looker=self.caller)} does not seem very talkative."
+            )
+            return
+        target.at_talk(self.caller)
+
+class CmdScore(MuxCommand):
+    """
+    Score sheet for a character
+    """
+    use_if_busy = True
+    key = "score"
+    aliases = "sc"
+
+    def func(self):
+        if self.caller.check_permstring("Developer"): 
+            if self.args:
+                # Use a global search to find the character (case-insensitive search by default)
+                target_name = self.args.strip()
+                potential_targets = search_object(target_name)
+        
+                # Narrow down to the first valid character target
+                target = None
+                for obj in potential_targets:
+                    if isinstance(obj, (SUCharacter, SUMob)):
+                        target = obj
+                        break
+                    elif not target:
+                        self.caller.msg(f"Could not find a valid character or mob named '{target_name}'.")
+                        return
+            else:
+                target = self.caller    
+        else:
+            target = self.caller
+
+        # create a new form from the template - using the python path
+        form = evform.EvForm("world.forms.scoreform")
+        if target.is_typeclass("world.character.characters.SUCharacter"):
+            account = target.account.name
+            level = int(target.level)
+        else:
+            account = "NPC"
+            level = "N/A"
+
+        # add data to each tagged form cell
+        form.map(cells={1: target.name,
+                        2: account,
+                        3: "Something",
+                        4: target.permissions,
+                        5: level,
+                        6: int(target.hp),
+                        7: int(target.hp_max)
+                        },
+                        align="r")
+
+        # create the EvTables
+        tableA = evtable.EvTable("","Base","Mod","Total",
+                            table=[["STR", "DEX", "INT"],
+                            [int(target.strength), int(target.dexterity), int(target.intelligence)],
+                            [5, 5, 5],
+                            [5, 5, 5]],
+                            border="incols")
+        
+        # add the tables to the proper ids in the form
+        form.map(tables={"A": tableA })
+        self.msg(str(form))
+
+class CmdRest(MuxCommand):
+    """
+    Start the resting script for the character.
+
+    Usage:
+        rest
+    """
+    key = "rest"
+
+    def func(self):
+        # Check if the caller is a character
+        if not self.caller or not hasattr(self.caller, "db"):
+            self.caller.msg("|rYou are not a valid target for resting.|n")
+            return
+
+        # Check if the healing script is already running
+        if self.caller.scripts.has("healing_script") or self.caller.ndb.busy:
+            self.caller.msg("|yYou are already resting.|n")
+            return
+
+        self.caller.ndb.busy = True
+        self.caller.msg("|455Resting has started. You will gain HP periodically until fully healed.|n")
+        # Start the healing script
+        create_script("world.scripts.character_script.RestingScript", obj=self.caller)
+
+class CmdLook(default_cmds.CmdLook):
+    use_if_busy = False
+    pass
+
+class CmdInventory(MuxCommand):
+    """
+    View your inventory
+
+    Usage:
+      inventory
+
+    """
+    use_if_busy = False
+
+    key = "inventory"
+    aliases = ("i", "inv")
+
+    def func(self):
+        loadout = self.caller.equipment.display_loadout()
+        backpack = self.caller.equipment.display_backpack()
+        slot_usage = self.caller.equipment.display_slot_usage()
+
+        self.caller.msg(f"{loadout}\n{backpack}\nYou use {slot_usage} equipment slots.")
+
+class CmdRestore(MuxCommand):
+    """
+    Restore health for all puppets or a specific character/object.
+
+    Usage:
+        restore
+        restore <target>
+
+    Without arguments, restores all puppeted characters' HP to their maximum.
+    With a target, restores the HP of the specified object/character.
+
+    Note:
+        This command can only be used by administrators.
+    """
+
+    key = "restore"
+    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
+
+    def func(self):
+        """
+        Command functionality.
+        """
+        if not self.args:
+            # Restore all puppets
+            puppets = [
+                obj for obj in self.caller.location.contents
+                if hasattr(obj, "account") and obj.account
+            ]
+            if not puppets:
+                self.caller.msg("No puppeted characters found to restore.")
+                return
+
+            for puppet in puppets:
+                if hasattr(puppet.db, "hp") and hasattr(puppet.db, "hp_max"):
+                    puppet.db.hp = puppet.db.hp_max
+                    puppet.msg("Your HP has been fully restored.")
+                    SUCharacter.update_stats(puppet)
+            self.caller.msg("All puppeted characters have been restored to full HP.")
+        else:
+            # Restore a specific target
+            target = self.caller.search(self.args.strip())
+            if not target:
+                self.caller.msg(f"Could not find a target named '{self.args.strip()}'.")
+                return
+
+            if hasattr(target.db, "hp") and hasattr(target.db, "hp_max"):
+                target.db.hp = target.db.hp_max
+                target.msg("Your HP has been fully restored.")
+                SUCharacter.update_stats(puppet)
+                self.caller.msg(f"{target.key}'s HP has been fully restored.")
+            else:
+                self.caller.msg(f"{target.key} does not have HP attributes to restore.")
+
+class SUCharacterCmdSet(CmdSet):
+    """
+    Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
+
+    """
+    key = "SUCharacter"
+
+    def at_cmdset_creation(self):
+        self.add(CmdWieldOrWear())
+        self.add(CmdRemove())
+        self.add(CmdGive())
+        self.add(CmdTalk())
+        self.add(CmdScore())
+        self.add(CmdRest())
+        self.add(CmdLook())
+        self.add(CmdInventory())
+        self.add(CmdRestore())
+
+# give / accept menu
 def _rescind_gift(caller, raw_string, **kwargs):
     """
     Called when giver rescinds their gift in `node_give` below.
@@ -237,344 +511,3 @@ def node_receive(caller, raw_string, **kwargs):
 
 def node_end(caller, raw_string, **kwargs):
     return "", None
-
-class CmdGive(SUCommand):
-    """
-    Give item or money to another person. Items need to be accepted before
-    they change hands. Money changes hands immediately with no wait.
-
-    Usage:
-      give <item> to <receiver>
-      give <number of coins> [coins] to receiver
-
-    If item name includes ' to ', surround it in quotes.
-
-    Examples:
-      give apple to ranger
-      give "road to happiness" to sad ranger
-      give 10 coins to ranger
-      give 12 to ranger
-
-    """
-
-    key = "give"
-
-    def parse(self):
-        """
-        Parsing is a little more complex for this command.
-
-        """
-        super().parse()
-        args = self.args
-        if " to " not in args:
-            self.caller.msg(
-                "Usage: give <item> to <recevier>. Specify e.g. '10 coins' to pay money. "
-                "Use quotes around the item name it if includes the substring ' to '. "
-            )
-            raise InterruptCommand
-
-        self.item_name = ""
-        self.coins = 0
-
-        # make sure we can use '...' to include items with ' to ' in the name
-        if args.startswith('"') and args.count('"') > 1:
-            end_ind = args[1:].index('"') + 1
-            item_name = args[:end_ind]
-            _, receiver_name = args.split(" to ", 1)
-        elif args.startswith("'") and args.count("'") > 1:
-            end_ind = args[1:].index("'") + 1
-            item_name = args[:end_ind]
-            _, receiver_name = args.split(" to ", 1)
-        else:
-            item_name, receiver_name = args.split(" to ", 1)
-
-        # a coin count rather than a normal name
-        if " coins" in item_name:
-            item_name = item_name[:-6]
-        if item_name.isnumeric():
-            self.coins = max(0, int(item_name))
-
-        self.item_name = item_name
-        self.receiver_name = receiver_name
-
-    def func(self):
-        caller = self.caller
-
-        receiver = caller.search(self.receiver_name)
-        if not receiver:
-            return
-
-        # giving of coins is always accepted
-
-        if self.coins:
-            current_coins = caller.coins
-            if self.coins > current_coins:
-                caller.msg(f"You only have |y{current_coins}|n coins to give.")
-                return
-            # do transaction
-            caller.coins -= self.coins
-            receiver.coins += self.coins
-            caller.location.msg_contents(
-                f"$You() $conj(give) $You({receiver.key}) {self.coins} coins.",
-                from_obj=caller,
-                mapping={receiver.key: receiver},
-            )
-            return
-
-        # giving of items require acceptance before it happens
-
-        item = caller.search(self.item_name, candidates=caller.equipment.all(only_objs=True))
-        if not item:
-            return
-
-        # testing hook
-        if not item.at_pre_give(caller, receiver):
-            return
-
-        # before we start menus, we must check so either part is not already in a menu,
-        # that would be annoying otherwise
-        if receiver.ndb._evmenu:
-            caller.msg(
-                f"{receiver.get_display_name(looker=caller)} seems busy talking to someone else."
-            )
-            return
-        if caller.ndb._evmenu:
-            caller.msg("Close the current menu first.")
-            return
-
-        # this starts evmenus for both parties
-        EvMenu(
-            receiver, {"node_receive": node_receive, "node_end": node_end}, item=item, giver=caller
-        )
-        EvMenu(caller, {"node_give": node_give, "node_end": node_end}, item=item, receiver=receiver)
-
-class CmdTalk(SUCommand):
-    """
-    Start a conversations with shop keepers and other NPCs in the world.
-
-    Args:
-      talk <npc>
-
-    """
-
-    key = "talk"
-
-    def func(self):
-        target = self.caller.search(self.args)
-        if not target:
-            return
-
-        if not inherits_from(target, SUTalkativeNPC):
-            self.caller.msg(
-                f"{target.get_display_name(looker=self.caller)} does not seem very talkative."
-            )
-            return
-        target.at_talk(self.caller)
-
-class CmdScore(SUCommand):
-    """
-    Score sheet for a character
-    """
-    key = "score"
-    aliases = "sc"
-
-    def func(self):
-        if self.caller.check_permstring("Developer"): 
-            if self.args:
-                # Use a global search to find the character (case-insensitive search by default)
-                target_name = self.args.strip()
-                potential_targets = search_object(target_name)
-        
-                # Narrow down to the first valid character target
-                target = None
-                for obj in potential_targets:
-                    if isinstance(obj, (SUCharacter, SUMob)):
-                        target = obj
-                        break
-                    elif not target:
-                        self.caller.msg(f"Could not find a valid character or mob named '{target_name}'.")
-                        return
-            else:
-                target = self.caller    
-        else:
-            target = self.caller
-
-        # create a new form from the template - using the python path
-        form = evform.EvForm("world.forms.scoreform")
-        if target.is_typeclass("world.character.characters.SUCharacter"):
-            account = target.account.name
-            level = int(target.level)
-        else:
-            account = "NPC"
-            level = "N/A"
-
-        # add data to each tagged form cell
-        form.map(cells={1: target.name,
-                        2: account,
-                        3: "Something",
-                        4: target.permissions,
-                        5: level,
-                        6: int(target.hp),
-                        7: int(target.hp_max)
-                        },
-                        align="r")
-
-        # create the EvTables
-        tableA = evtable.EvTable("","Base","Mod","Total",
-                            table=[["STR", "DEX", "INT"],
-                            [int(target.strength), int(target.dexterity), int(target.intelligence)],
-                            [5, 5, 5],
-                            [5, 5, 5]],
-                            border="incols")
-        
-        # add the tables to the proper ids in the form
-        form.map(tables={"A": tableA })
-        self.msg(str(form))
-
-from evennia import Command
-from evennia import create_script
-
-class CmdRest(Command):
-    """
-    Start the resting script for the character.
-
-    Usage:
-        rest
-    """
-    key = "rest"
-
-    def func(self):
-        # Check if the caller is a character
-        if not self.caller or not hasattr(self.caller, "db"):
-            self.caller.msg("|rYou are not a valid target for healing.|n")
-            return
-
-        # Check if the healing script is already running
-        if self.caller.scripts.has("healing_script"):
-            self.caller.msg("|yHealing is already in progress.|n")
-            return
-
-        # Start the healing script
-        create_script("world.scripts.character_script.RestingScript", obj=self.caller)
-        self.caller.msg("|gResting has started. You will gain HP periodically until fully healed.|n")
-
-class SUCharacterCmdSet(CmdSet):
-    """
-    Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
-
-    """
-
-    key = "SUCharacter"
-
-    def at_cmdset_creation(self):
-        self.add(CmdInventory())
-        self.add(CmdWieldOrWear())
-        self.add(CmdRemove())
-        self.add(CmdGive())
-        self.add(CmdTalk())
-        self.add(CmdScore())
-        self.add(CmdRest())
-
-class CmdDiagnose(Command):
-        """
-        see how hurt your are
-
-        Usage: 
-          diagnose [target]
-
-        This will give an estimate of the target's health. Also
-        the target's prompt will be updated. 
-        """ 
-        key = "diagnose"
-        locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
-        
-        def func(self):
-            if not self.args:
-                target = self.caller
-            else:
-                target = self.caller.search(self.args)
-                if not target:
-                    return
-            # try to get health, mana and stamina
-            hp = target.db.hp
-
-            if hp is None:
-                # Attributes not defined          
-                self.caller.msg("Not a valid target!")
-                return 
-             
-            text = f"You diagnose {target} as having {hp} health."
-            healthbar = display_meter(target.db.hp,target.db.hp_max)
-            self.caller.msg(text, prompt=healthbar)
-
-class CmdDebug(Command):
-    key = "debug"
-    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
-
-    def func(self):
-        self.caller.msg("Debug command executed.")
-
-class CmdRestore(Command):
-    """
-    Restore health for all puppets or a specific character/object.
-
-    Usage:
-        restore
-        restore <target>
-
-    Without arguments, restores all puppeted characters' HP to their maximum.
-    With a target, restores the HP of the specified object/character.
-
-    Note:
-        This command can only be used by administrators.
-    """
-
-    key = "restore"
-    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
-
-    def func(self):
-        """
-        Command functionality.
-        """
-        if not self.args:
-            # Restore all puppets
-            puppets = [
-                obj for obj in self.caller.location.contents
-                if hasattr(obj, "account") and obj.account
-            ]
-            if not puppets:
-                self.caller.msg("No puppeted characters found to restore.")
-                return
-
-            for puppet in puppets:
-                if hasattr(puppet.db, "hp") and hasattr(puppet.db, "hp_max"):
-                    puppet.db.hp = puppet.db.hp_max
-                    puppet.msg("Your HP has been fully restored.")
-                    SUCharacter.update_stats(puppet)
-            self.caller.msg("All puppeted characters have been restored to full HP.")
-        else:
-            # Restore a specific target
-            target = self.caller.search(self.args.strip())
-            if not target:
-                self.caller.msg(f"Could not find a target named '{self.args.strip()}'.")
-                return
-
-            if hasattr(target.db, "hp") and hasattr(target.db, "hp_max"):
-                target.db.hp = target.db.hp_max
-                target.msg("Your HP has been fully restored.")
-                SUCharacter.update_stats(puppet)
-                self.caller.msg(f"{target.key}'s HP has been fully restored.")
-            else:
-                self.caller.msg(f"{target.key} does not have HP attributes to restore.")
-
-class SUAdminCmdSet(CmdSet):
-    """
-    Admin commands
-    """
-
-    key = "SUAdmin"
-
-    def at_cmdset_creation(self):
-        self.add(CmdDiagnose())
-        self.add(CmdDebug())
-        self.add(CmdRestore())

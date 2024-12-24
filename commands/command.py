@@ -69,11 +69,16 @@ class MuxCommand(Command):
         are satisfied using the default check in Command.
         """
         return super().has_perm(srcobj)
+    
     def at_pre_cmd(self):
         """
         This hook is called before self.parse() on all commands
         """
-        pass
+        #A command that can't be used while the character is busy.
+        if hasattr(self, "use_if_busy") and self.caller.ndb.busy:
+            self.caller.msg("|rYou are too busy for that.|n")
+            return True
+        return False
 
     def at_post_cmd(self):
         """
@@ -86,9 +91,6 @@ class MuxCommand(Command):
             account = self.caller.account
             if account and account.puppet:
                 self.caller.update_prompt()
-        #if self.caller.puppet and hasattr(self.caller.puppet, "update_prompt"):
-        #    self.caller.puppet.update_prompt()
-        #pass
 
     def parse(self):
         """
