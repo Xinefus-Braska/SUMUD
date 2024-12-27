@@ -189,6 +189,31 @@ class SUCharacter(LivingMixin, DefaultCharacter):
     def armor(self):
         return self.equipment.armor
 
+    def at_pre_move(self, destination, **kwargs):
+        """
+        Called by self.move_to when trying to move somewhere. If this returns
+        False, the move is immediately cancelled.
+        """
+        """
+        # check if we have any statuses that prevent us from moving
+        if statuses := self.tags.get(_IMMOBILE, category="status", return_list=True):
+            self.msg(
+                f"You can't move while you're {iter_to_str(sorted(statuses), endsep='or')}."
+            )
+            return False
+
+        # check if we're in combat
+        if self.in_combat:
+            self.msg("You can't leave while in combat.")
+            return False
+        """
+        #A command that can't be used while the character is busy.
+        if self.ndb.busy:
+            return False
+            
+        else:
+            return super().at_pre_move(destination, **kwargs)
+
     def at_pre_object_receive(self, moved_object, source_location, **kwargs):
         """
         Hook called by Evennia before moving an object here. Return False to abort move.

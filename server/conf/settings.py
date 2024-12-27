@@ -137,6 +137,7 @@ AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
 #CHARGEN_MENU = "world.character.chargen"
 BASE_CHARACTER_TYPECLASS = "world.character.characters.SUCharacter"
 BASE_ROOM_TYPECLASS = "world.rooms.rooms.SURoom"
+BASE_EXIT_TYPECLASS = "world.rooms.suexits.SUExit"
 # BASE_OBJECT_TYPECLASS = 
 #PROTOTYPE_MODULES = "world.character.mobprototypes"
 COMMAND_DEFAULT_CLASS = "commands.command.MuxCommand"
