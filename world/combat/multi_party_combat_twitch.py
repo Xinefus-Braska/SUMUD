@@ -272,7 +272,6 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             if action.can_use():
                 action.execute()
                 action.post_execute()
-                #print(f"'{combatant.key}' execute_next_action '{action_dict['key']}'.")
             else:
                 combatant.msg(f"Action {action_dict['key']} cannot be used right now.")
         else:
@@ -280,12 +279,13 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         # Re-queue the action if it is set to repeat
         if action_dict.get("repeat", True):
             self.action_dict = action_dict
-            #print(f"'{combatant.key}' repeat queue_action '{action_dict['key']}'.")
             self.queue_action(self.action_dict, combatant)
         elif action_dict.get("repeat", False):
             self.action_dict = self.fallback_action_dict
-            #print(f"'{combatant.key}' queue fallback action '{action_dict['key']}'.")
             self.queue_action(self.action_dict, combatant)
+
+        if hasattr(combatant, "is_pc") and combatant.is_pc:
+            SUCharacter.update_stats(combatant)
 
         # Check if combat should continue
         self.check_stop_combat()

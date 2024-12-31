@@ -154,6 +154,7 @@ class SUCharacter(LivingMixin, DefaultCharacter):
 
     """
     is_pc = True
+    prompt_on = True
 
     # these are the ability bonuses. Defense is always 10 higher
     strength = AttributeProperty(default=1)
@@ -360,8 +361,8 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         """
         Updates the prompt displayed to the player.
         """
-        #hp = self.db.hp if hasattr(self, "db") and self.db.hp else "?"
-        #hp_max = self.db.hp_max if hasattr(self, "db") and self.db.hp_max else "?"
+        if not self.prompt_on:
+            return
         prompt_text = display_meter(self.hp,self.hp_max)
         self.msg(prompt=prompt_text)
 
@@ -369,4 +370,5 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         """
         Update the stats of the character.
         """
-        self.update_prompt()
+        if hasattr(self, "is_pc") and self.is_pc:
+            self.update_prompt()

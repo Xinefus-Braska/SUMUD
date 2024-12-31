@@ -77,6 +77,11 @@ class MuxCommand(Command):
         #A command that can't be used while the character is busy.
         if hasattr(self, "use_if_busy") and self.caller.ndb.busy:
             self.caller.msg("|rYou are too busy for that.|n")
+            # Check if the caller is a character and is puppeted
+            if inherits_from(self.caller, "evennia.objects.objects.DefaultCharacter"):
+                account = self.caller.account
+                if account and account.puppet:
+                    self.caller.update_prompt()
             return True
         return False
 

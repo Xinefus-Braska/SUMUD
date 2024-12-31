@@ -269,6 +269,7 @@ class CmdScore(MuxCommand):
         if target.is_typeclass("world.character.characters.SUCharacter"):
             account = target.account.name
             level = int(target.level)
+            xp = int(target.xp)
         else:
             account = "NPC"
             level = "N/A"
@@ -280,7 +281,8 @@ class CmdScore(MuxCommand):
                         4: target.permissions,
                         5: level,
                         6: int(target.hp),
-                        7: int(target.hp_max)
+                        7: int(target.hp_max),
+                        8: xp
                         },
                         align="r")
 
@@ -393,7 +395,7 @@ class CmdRestore(MuxCommand):
             if hasattr(target.db, "hp") and hasattr(target.db, "hp_max"):
                 target.db.hp = target.db.hp_max
                 target.msg("Your HP has been fully restored.")
-                SUCharacter.update_stats(puppet)
+                SUCharacter.update_stats(target)
                 self.caller.msg(f"{target.key}'s HP has been fully restored.")
             else:
                 self.caller.msg(f"{target.key} does not have HP attributes to restore.")

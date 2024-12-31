@@ -9,9 +9,9 @@ FORM = '''
 |           TRAITS           |               STATS                  |
 | ~~~~~~~~~~~~~~~~~~~~~~~~~~ | ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ |
 | Level:               xx5xx | cccccccccccccccccccccccccccccccccccc |
-|                            | cccccccccccccccccccccccccccccccccccc |
-| HP:      xxxxxxxx6xxxxxxxx | ccccccccccccccccccAccccccccccccccccc |
+| XP:      xxxxxxxx8xxxxxxxx | cccccccccccccccccccccccccccccccccccc |
+|                            | ccccccccccccccccccAccccccccccccccccc |
+| HP:      xxxxxxxx6xxxxxxxx | cccccccccccccccccccccccccccccccccccc |
 | HP_max:  xxxxxxxx7xxxxxxxx | cccccccccccccccccccccccccccccccccccc |
-|                            | cccccccccccccccccccccccccccccccccccc |
 ---------------------------------------------------------------------
 '''
