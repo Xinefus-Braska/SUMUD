@@ -114,10 +114,10 @@ class SUWeapon(SUObject):
            # we assume weapons can only be used in the same location
            user.msg("You are not close enough to the target!")
            return False
-
-        if self.quality is not None and self.quality <= 0:
-           user.msg(f"{self.get_display_name(user)} is broken and can't be used!")
-           return False
+        # Not using object durability for now
+        #if self.quality is not None and self.quality <= 0:
+        #   user.msg(f"{self.get_display_name(user)} is broken and can't be used!")
+        #   return False
         return super().at_pre_use(user, target=target, *args, **kwargs)
 
     def use(self, attacker, target, *args, advantage=False, disadvantage=False, **kwargs):
@@ -133,7 +133,7 @@ class SUWeapon(SUObject):
             disadvantage=disadvantage,
         )
         location.msg_contents(
-            f"$You() $conj(attack) $You({target.key}) with {self.key}: {txt}",
+            f"$You() $conj(attack) $You({target.key}) with {self.key}.", #: {txt}
             from_obj=attacker, mapping={target.key: target},
         )
         if is_hit:
@@ -141,13 +141,13 @@ class SUWeapon(SUObject):
             dmg = rules.dice.roll(self.damage_roll)
 
             if quality is Ability.CRITICAL_SUCCESS:
-                # doble damage roll for critical success
+                # double damage roll for critical success
                 dmg += rules.dice.roll(self.damage_roll)
                 message = (
-                    f" $You() |ycritically|n $conj(hit) $You({target.key}) for |r{dmg}|n damage!"
+                    f" $You() |ycritically|n |g$conj(hit)|n $You({target.key}) for |r{dmg}|n damage!"
                 )
             else:
-                message = f" $You() $conj(hit) $You({target.key}) for |r{dmg}|n damage!"
+                message = f" $You() |g$conj(hit)|n $You({target.key}) for |r{dmg}|n damage!"
 
             location.msg_contents(message, from_obj=attacker, mapping={target.key: target})
             # call hook
@@ -155,16 +155,19 @@ class SUWeapon(SUObject):
 
         else:
         # a miss
-            message = f" $You() $conj(miss) $You({target.key})."
-            if quality is Ability.CRITICAL_FAILURE:
-                message += ".. it's a |rcritical miss!|n, damaging the weapon."
-            if self.quality is not None:
-                self.quality -= 1
+            message = f" $You() |r$conj(miss)|n $You({target.key})."
+            # Not using object durability for now
+            #if quality is Ability.CRITICAL_FAILURE:
+            #    message += ".. it's a |rcritical miss!|n, damaging the weapon."
+            #if self.quality is not None:
+            #    self.quality -= 1
             location.msg_contents(message, from_obj=attacker, mapping={target.key: target})
 
     def at_post_use(self, user, *args, **kwargs):
-        if self.quality is not None and self.quality <= 0:
-            user.msg(f"|r{self.get_display_name(user)} breaks and can no longer be used!")
+        pass
+        # Not using object durability for now
+        #if self.quality is not None and self.quality <= 0:
+        #    user.msg(f"|r{self.get_display_name(user)} breaks and can no longer be used!")
 
 class SURuneStone(SUWeapon, SUConsumable): 
     """Base for all magical rune stones"""
@@ -215,7 +218,7 @@ def get_bare_hands():
     """Get the bare hands""" 
     global _BARE_HANDS
     if not _BARE_HANDS: 
-        _BARE_HANDS = search_object("Bare hands", typeclass=WeaponBareHands).first()
+        _BARE_HANDS = search_object("bare hands", typeclass=WeaponBareHands).first()
     if not _BARE_HANDS:
-        _BARE_HANDS = create_object(WeaponBareHands, key="Bare hands")
+        _BARE_HANDS = create_object(WeaponBareHands, key="bare hands")
     return _BARE_HANDS
