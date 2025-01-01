@@ -273,6 +273,7 @@ class CmdScore(MuxCommand):
         else:
             account = "NPC"
             level = "N/A"
+            xp = "N/A"
 
         # add data to each tagged form cell
         form.map(cells={1: target.name,
