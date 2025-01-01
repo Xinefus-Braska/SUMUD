@@ -56,7 +56,7 @@ from random import randint
 #from world.character.npc import SUMob
 
 GOBLIN = {
- "key": "grunt",
+ "key": "Grunt",
  "typeclass": "world.character.npc.SUMob",
  "hp": 30,
  "hp_max": 30,
