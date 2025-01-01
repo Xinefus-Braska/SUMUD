@@ -11,7 +11,7 @@ from evennia.utils.utils import (
 
 import time
 
-from world.character.characters import SUCharacter
+from world.character.characters import SUCharacter, LivingMixin
 from world.character.npc import SUMob
 from world.combat.combat_base import (
     CombatActionAttack,
@@ -300,23 +300,48 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         location = self.obj.location
         
         # only keep combatants that are alive and still in the same room
-        allies = [comb for comb in allies if comb.hp > 0 and comb.location == location]
-        enemies = [comb for comb in enemies if comb.hp > 0 and comb.location == location]
+        active_allies = [comb for comb in allies if comb.hp > 0 and comb.location == location]
+        active_enemies = [comb for comb in enemies if comb.hp > 0 and comb.location == location]
 
-        if not allies and not enemies:
+        # Identify losers: dead or not in the same location
+        defeated_allies = [comb for comb in allies if comb not in active_allies]
+        defeated_enemies = [comb for comb in enemies if comb not in active_enemies]
+        defeated = defeated_allies + defeated_enemies
+
+        if not active_allies and not active_enemies:
             self.msg("Noone stands after the dust settles.", broadcast=False)
             self.stop_combat()
             return
+    
+        if not active_allies or not active_enemies:
+            # Determine the winners
+            victors = active_allies + active_enemies  # Remaining combatants
+            
+            if victors:
+                # Announce victors
+                for victor in victors:                    
+                    for loser in defeated:
+                        # add more code here for what the loser gets!
+                        #loser.msg("|rYou have been defeated in combat!|n")
+                        SUMob.at_defeat(loser)
 
-        if not allies or not enemies:
-            if allies + enemies == [self.obj]:
-                self.msg("The combat is over.")
+                    victor.msg("|gCongratulations! You are victorious in battle!|n")
+                    if hasattr(victor, "is_pc") and victor.is_pc:
+                        for loser in defeated: 
+                            if LivingMixin.pre_loot(victor, loser) == True:
+                                LivingMixin.at_do_loot(victor, loser)
+
+                # Create a list of victor names for the broadcast
+                #victor_names = list_to_string(f"$You({comb.key})" for comb in victors)
+                #loser_names = list_to_string(f"$You({comb.key})" for comb in defeated)
+                #self.msg(
+                #    f"Victors: {victor_names}. Defeated: {loser_names}.",
+                #    broadcast=True,
+                #)
             else:
-                still_standing = list_to_string(f"$You({comb.key})" for comb in allies + enemies)
-                self.msg(
-                    f"The combat is over. Still standing: {still_standing}.",
-                    broadcast=False,
-                )
+                # Edge case: self.obj might be standing alone (unlikely, but defensive coding)
+                self.msg("The combat is over.")
+
             self.stop_combat()
 
     def stop_combat(self):
@@ -327,6 +352,8 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
         for combatant in self.db.combatants:
             combatant.msg("You have left combat.")
             del combatant.ndb.combathandler  # Remove reference to the combat handler
+            if hasattr(combatant, "is_pc") and combatant.is_pc:
+                SUCharacter.update_stats(combatant)
         self.db.combatants.clear()
         self.db.action_queue.clear()
         self.obj.cmdset.remove(TwitchLookCmdSet)
@@ -427,6 +454,8 @@ class CmdAttack(_BaseTwitchCombatCommand):
         
         combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": False}, self.caller)
         combathandler.msg(f"$You() $conj(attack) $You({target})!", self.caller)
+        if hasattr(self.caller, "is_pc") and self.caller.is_pc:
+            SUCharacter.update_stats(self.caller)
 
 class CmdUseItem(_BaseTwitchCombatCommand):
     """

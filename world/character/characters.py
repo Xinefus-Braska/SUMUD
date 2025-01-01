@@ -96,7 +96,10 @@ class LivingMixin:
         Called when this living thing dies.
 
         """
-        pass
+        self.location.msg_contents(
+            "|r$You() $conj(collapse) in a heap.\nDeath embraces $You() ...|n",
+            from_obj=self,
+        )
 
     def at_pay(self, amount):
         """When paying coins, make sure to never detract more than we have"""
@@ -107,9 +110,9 @@ class LivingMixin:
     def at_looted(self, looter):
         """Called when looted by another entity""" 
         # default to stealing some coins 
-        max_steal = dice.roll("1d10") 
-        stolen = self.at_pay(max_steal)
-        looter.coins += stolen
+        loot = self.coins
+        looter.coins += loot
+        looter.msg(f"You loot {self.key} for {loot} coins.")
 
     def pre_loot(self, defeated_enemy):
         """
@@ -122,7 +125,8 @@ class LivingMixin:
             bool: If False, no looting is allowed.
 
         """
-        pass
+        self.msg(f"You loot {defeated_enemy.key}!")
+        return True
 
     def at_do_loot(self, defeated_enemy):
         """
@@ -132,7 +136,11 @@ class LivingMixin:
             defeated_enemy: The thing to loot.
 
         """
-        defeated_enemy.at_looted(self)
+        # loot the enemy
+        if hasattr(defeated_enemy, "at_looted"):
+            defeated_enemy.at_looted(self)
+        else:
+            print(f"DEBUG: {defeated_enemy.key} has no at_looted method.")
 
     def post_loot(self, defeated_enemy):
         """
@@ -271,13 +279,12 @@ class SUCharacter(LivingMixin, DefaultCharacter):
 
     def at_defeat(self):
         """
-        This happens when character drops <= 0 HP. For Characters, this means rolling on
-        the death table.
+        This happens when character drops <= 0 HP.
 
         """
         if self.location.allow_death:
             # this allow rooms to have non-lethal battles
-            dice.roll_death(self)
+            self.at_death()
         else:
             self.location.msg_contents(
                 "$You() $conj(collapse) in a heap, alive but beaten.",
@@ -289,10 +296,7 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         Called when character dies.
 
         """
-        self.location.msg_contents(
-            "|r$You() $conj(collapse) in a heap.\nDeath embraces you ...|n",
-            from_obj=self,
-        )
+        pass
 
     def at_pre_loot(self):
         """

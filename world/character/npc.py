@@ -50,7 +50,7 @@ class SUNPC(LivingMixin, DefaultCharacter):
     is_idle = AttributeProperty(default=False, autocreate=False)
 
     weapon = AttributeProperty(default=get_bare_hands, autocreate=False)  # instead of inventory
-    coins = AttributeProperty(default=1, autocreate=False)  # coin loot
+    coins = AttributeProperty(default=10, autocreate=False)  # coin loot
     
     # if this npc is attacked, everyone with the same tag in the current location will also be
     # pulled into combat.
