@@ -65,19 +65,19 @@ GOBLIN = {
 # "weaknesses": ["fire", "light"],
  "tags": [("greenskin", "monster"), ("humanoid", "monster")]
  }
-#
+
 # GOBLIN_WIZARD = {
 # "prototype_parent": "GOBLIN",
 # "key": "goblin wizard",
 # "spells": ["fire ball", "lighting bolt"]
 # }
-#
+
 # GOBLIN_ARCHER = {
 # "prototype_parent": "GOBLIN",
 # "key": "goblin archer",
 # "attacks": ["short bow"]
 # }
-#
+
 # This is an example of a prototype without a prototype
 # (nor key) of its own, so it should normally only be
 # used as a mix-in, as in the example of the goblin
@@ -86,7 +86,7 @@ GOBLIN = {
 # "attacks": ["archwizard staff"],
 # "spells": ["greater fire ball", "greater lighting"]
 # }
-#
+
 # GOBLIN_ARCHWIZARD = {
 # "key": "goblin archwizard",
 # "prototype_parent" : ("GOBLIN_WIZARD", "ARCHWIZARD_MIXIN")

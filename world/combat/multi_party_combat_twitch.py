@@ -253,7 +253,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             action_dict = next_action["action_dict"]
             target = next_action["action_dict"].get("target", None)
 
-            print(f"'{combatant.key}' -> '{action_dict['key']}' -> '{target}'.")
+            #print(f"'{combatant.key}' -> '{action_dict['key']}' -> '{target}'.")
             
             # Execute the action
             self.execute_next_action(action_dict, combatant)

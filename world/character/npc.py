@@ -51,6 +51,7 @@ class SUNPC(LivingMixin, DefaultCharacter):
 
     weapon = AttributeProperty(default=get_bare_hands, autocreate=False)  # instead of inventory
     coins = AttributeProperty(default=10, autocreate=False)  # coin loot
+    xp_value = AttributeProperty(default=1, autocreate=False)  # XP value when killed
     
     # if this npc is attacked, everyone with the same tag in the current location will also be
     # pulled into combat.
@@ -373,6 +374,17 @@ class SUMob(SUNPC):
             # if in a dead end, roam will allow for backing out
             self.ai.set_state("roam")
 
+    def get_xp_value(self):
+        """
+        Calculate the XP value this entity grants when defeated.
+
+        Returns:
+            int: The XP value granted.
+        """
+        base_xp = getattr(self, "xp_value", 0)  # Base XP defined on the mob
+        level_multiplier = getattr(self, "level", 1)  # Use the entity's level if it exists
+        return base_xp * level_multiplier
+    
     def at_defeat(self):
         """
         Mobs die right away when defeated, no death-table rolls.

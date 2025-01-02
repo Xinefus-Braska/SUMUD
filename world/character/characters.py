@@ -125,7 +125,6 @@ class LivingMixin:
             bool: If False, no looting is allowed.
 
         """
-        self.msg(f"You loot {defeated_enemy.key}!")
         return True
 
     def at_do_loot(self, defeated_enemy):
@@ -141,6 +140,7 @@ class LivingMixin:
             defeated_enemy.at_looted(self)
         else:
             print(f"DEBUG: {defeated_enemy.key} has no at_looted method.")
+        self.post_loot(defeated_enemy)
 
     def post_loot(self, defeated_enemy):
         """
@@ -150,7 +150,11 @@ class LivingMixin:
             defeated_enemy (Object): The enemy just looted.
 
         """
-        pass
+        from world.character.npc import SUMob
+
+        if hasattr(self, "is_pc") and self.is_pc:
+            if SUCharacter.add_xp(self, int(SUMob.get_xp_value(defeated_enemy))):
+                self.level_up("strength", "dexterity", "constitution")
 
 class SUCharacter(LivingMixin, DefaultCharacter):
     """
@@ -329,6 +333,7 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         """
         self.xp += xp
         next_level_xp = self.level * self.xp_per_level
+        self.msg(f"You gain {xp} XP.")
         return self.xp >= next_level_xp
 
     def level_up(self, *abilities):
