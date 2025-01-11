@@ -691,11 +691,10 @@ class CmdParty(MuxCommand):
         """Remove a character from the PartyManager's list of members."""
         if self.caller.id in party["member_ids"]:
             party["member_ids"].remove(self.caller.id)
-            self.caller.msg(f"You have left the party '{party_name}'.")
 
         # Notify remaining members
-        for member_id in remaining_members:
-            member = ObjectDB.objects.get(id=member_id)
+        for member in remaining_members:
+            #member = ObjectDB.objects.get(id=member_id)
             member.msg(f"|y{self.caller.key} has left the party.|n")
 
         # Disband the party if no members remain
