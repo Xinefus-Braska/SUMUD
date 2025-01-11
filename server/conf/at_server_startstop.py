@@ -1,3 +1,5 @@
+from evennia import search_script
+
 """
 Server startstop hooks
 
@@ -30,7 +32,11 @@ def at_server_start():
     This is called every time the server starts up, regardless of
     how it was shut down.
     """
-    pass
+    #pass
+    # Ensure the PartyManager script exists
+    if not search_script("party_manager"):
+        from world.scripts.party import PartyManager
+        PartyManager.create("party_manager")
 
 
 def at_server_stop():

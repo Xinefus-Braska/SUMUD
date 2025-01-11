@@ -1,4 +1,5 @@
-from evennia import CmdSet, Command, InterruptCommand, default_cmds, search_object, create_script
+from evennia import CmdSet, InterruptCommand, default_cmds, search_object, create_script, search_script
+from evennia.objects.models import ObjectDB
 from evennia.utils.evmenu import EvMenu
 from evennia.utils.utils import inherits_from
 from commands.command import MuxCommand
@@ -401,24 +402,6 @@ class CmdRestore(MuxCommand):
             else:
                 self.caller.msg(f"{target.key} does not have HP attributes to restore.")
 
-class SUCharacterCmdSet(CmdSet):
-    """
-    Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
-
-    """
-    key = "SUCharacter"
-
-    def at_cmdset_creation(self):
-        self.add(CmdWieldOrWear())
-        self.add(CmdRemove())
-        self.add(CmdGive())
-        self.add(CmdTalk())
-        self.add(CmdScore())
-        self.add(CmdRest())
-        self.add(CmdLook())
-        self.add(CmdInventory())
-        self.add(CmdRestore())
-
 # give / accept menu
 def _rescind_gift(caller, raw_string, **kwargs):
     """
@@ -514,3 +497,545 @@ def node_receive(caller, raw_string, **kwargs):
 
 def node_end(caller, raw_string, **kwargs):
     return "", None
+
+class CmdParty(MuxCommand):
+    """
+    Party management and communication.
+
+    Usage:
+        party                    - Show party information.
+        party create <name>      - Create a new party.
+        party invite <character> - Invite a character to the party.
+        party accept             - Accept a party invitation.
+        party leave              - Leave the current party.
+        party promote <member>   - Promote a member to leader.
+        party remove <member>    - Remove a member from the party.
+        party <message>          - Send a message to the party.
+
+    """
+    key = "party"
+    locks = "cmd:all()"
+
+    def func(self):
+        
+        # Show party status if no arguments are provided
+        if not self.args.strip():
+            status = display_party_status(self.caller)
+            self.caller.msg(status)
+            return
+
+        args = self.args.strip().split(None, 1)
+
+        if not args or not args[0]:
+            self.display_party_status()
+            return
+
+        subcommand = args[0].lower()
+        argument = args[1].strip() if len(args) > 1 else ""
+
+        # Dispatch to the appropriate subcommand
+        if subcommand == "create":
+            self.party_create(argument)
+        elif subcommand == "invite":
+            self.party_invite(argument)
+        elif subcommand == "accept":
+            self.party_accept()
+        elif subcommand == "leave":
+            self.party_leave()
+        elif subcommand == "remove":
+            self.party_remove(argument)
+        elif subcommand == "promote":
+            self.party_promote(argument)
+        elif subcommand == "disband":
+            self.party_disband()
+        else:
+            # If no recognized subcommand, treat the input as a chat message
+            self.party_chat(" ".join(args))
+
+    # Subcommand implementations    
+    def party_create(self, name):
+        """Handle party creation."""
+        if not name:
+            self.caller.msg("You must specify a name for the party.")
+            return
+
+        if self.caller.db.party:
+            self.caller.msg("You are already in a party. Leave your current party first.")
+            return
+
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+
+        # Create a new party
+        new_party = party_manager.create_party(self.caller, name)
+        if not new_party:
+            self.caller.msg(f"A party with the name '{name}' already exists.")
+            return
+
+        self.caller.db.party = name
+        self.caller.msg(f"|gYou have created a new party named '{name}'.|n")
+
+    def party_invite(self, target_name):
+        """Handle inviting another character to the party."""
+        if not target_name:
+            self.caller.msg("You must specify someone to invite.")
+            return
+
+        target = self.caller.search(target_name)
+        if not target:
+            return
+
+        if not self.caller.db.party:
+            self.caller.msg("You are not in a party. Create one first.")
+            self.caller.msg(f"Usage: party <create||invite|promote> [arguments]")
+            return
+
+        if target.db.party:
+            self.caller.msg(f"{target.key} is already in a party.")
+            return
+
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+        
+        # Retrieve the party
+        party_name = self.caller.db.party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg("Your party no longer exists.")
+            self.caller.db.party = None
+            return
+        
+        # Check if the party is already full
+        if len(party["member_ids"]) >= party_manager.MAX_PARTY_SIZE:
+            self.caller.msg(f"|rThe party '{party_name}' is already full. Maximum size is {party_manager.MAX_PARTY_SIZE}.|n")
+            return
+        
+        # Send an invitation
+        target.db.party_invitation = self.caller.db.party
+        self.caller.msg(f"You have invited {target.key} to your party.")
+        target.msg(f"|gYou have been invited to join '{self.caller.db.party}' by {self.caller.key}.|n")
+
+    def party_accept(self):
+        """Handle accepting a party invitation."""
+        if not self.caller.db.party_invitation:
+            self.caller.msg("You have no pending party invitations.")
+            return
+
+        # Access the PartyManager script
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+        
+        # Resolve the party
+        party_name = self.caller.db.party_invitation
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg(f"The party '{party_name}' no longer exists.")
+            self.caller.db.party_invitation = None  # Clear the invitation
+            return
+        
+        # Add the caller to the party
+        self.caller.db.party_invitation = None  # Clear the invitation
+        if party_manager.add_member_to_party(self.caller, party_name):
+            self.caller.db.party = party_name
+            self.caller.msg(f"|gYou have joined the party '{party_name}'.|n")
+
+            # Notify the party members
+            for member in party_manager.get_party_members(party_name):
+                if member != self.caller:
+                    member.msg(f"|g{self.caller.key} has joined the party.|n")
+
+    def party_leave(self):
+        """Handle leaving the party."""
+        if not self.caller.db.party:
+            self.caller.msg("You are not in a party.")
+            self.caller.msg(f"Usage: party <create||invite|promote> [arguments]")
+            return
+
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+        
+        # Retrieve the party
+        party_name = self.caller.db.party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg("Your party no longer exists.")
+            self.caller.db.party = None
+            return
+        # Remove the caller from the party
+        self.caller.db.party = None
+        
+        if party["leader_id"] == self.caller.id and len(party["member_ids"]) > 1:
+            # If the leader is leaving and there are remaining members
+            remaining_members = [member for member in party["member_ids"] if member != self.caller.id]
+            new_leader_id = remaining_members[0]  # Set the first member as the new leader
+            new_leader = ObjectDB.objects.get(id=new_leader_id)  # Retrieve the new leader object
+            party["leader_id"] = new_leader.id
+            new_leader.msg(f"|yYou are now the leader of the party '{party['name']}'.|n")
+        else:
+            # If the character is not the leader, just remove them from the party
+            if party_manager.remove_member_from_party(self.caller, party_name):
+                self.caller.msg(f"You have left the party '{party_name}'.")
+                remaining_members = party_manager.get_party_members(party_name)
+
+        """Remove a character from the PartyManager's list of members."""
+        if self.caller.id in party["member_ids"]:
+            party["member_ids"].remove(self.caller.id)
+            self.caller.msg(f"You have left the party '{party_name}'.")
+
+        # Notify remaining members
+        for member_id in remaining_members:
+            member = ObjectDB.objects.get(id=member_id)
+            member.msg(f"|y{self.caller.key} has left the party.|n")
+
+        # Disband the party if no members remain
+        if not remaining_members:
+            party_manager.remove_party(party_name)
+            self.caller.msg(f"The party '{party_name}' has been disbanded.")
+
+    def party_remove(self, target_name):
+        """Handle removing a member from the party."""
+        if not target_name:
+            self.caller.msg("You must specify a party member to remove.")
+            return
+
+        if not self.caller.db.party:
+            self.caller.msg("You are not in a party.")
+            self.caller.msg(f"Usage: party <create||invite|promote> [arguments]")
+            return
+
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+
+        # Retrieve the party
+        party_name = self.caller.db.party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg("Your party no longer exists.")
+            return
+
+         # Check if the caller is the leader
+        if party["leader_id"] != self.caller.id:
+            self.caller.msg("Only the party leader can remove members.")
+            return
+
+         # Find the target member
+        target = next(
+            (member for member in party_manager.get_party_members(party_name) if member.key.lower() == target_name.lower()),
+            None,
+        )
+        if not target:
+            self.caller.msg(f"{target_name} is not in your party.")
+            return
+        
+        if party_manager.remove_member_from_party(target, party_name):
+            target.db.party = None
+            target.msg(f"|rYou have been removed from the party '{party_name}' by {self.caller.key}.|n")
+            self.caller.msg(f"|yYou have removed {target.key} from the party.|n")
+
+        # Notify remaining members
+        for member in party_manager.get_party_members(party_name):
+            member.msg(f"|y{target.key} has been removed from the party by {self.caller.key}.|n")
+
+        # Disband the party if no members remain
+        if not party_manager.get_party_members(party_name):
+            party_manager.remove_party(party_name)
+            self.caller.msg(f"The party '{party_name}' has been disbanded.")
+
+    def party_promote(self, target_name):
+        """Handle promoting a member to leader."""
+        if not target_name:
+            self.caller.msg("You must specify a party member to promote.")
+            return
+
+        if not self.caller.db.party:
+            self.caller.msg("You are not in a party.")
+            self.caller.msg(f"Usage: party <create||invite|promote> [arguments]")
+            return
+
+            # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+
+        # Retrieve the party
+        party_name = self.caller.db.party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg("Your party no longer exists.")
+            return
+
+        # Check if the caller is the leader
+        if party["leader_id"] != self.caller.id:
+            self.caller.msg("Only the party leader can promote another member.")
+            return
+
+        # Find the target member
+        target = next(
+            (member for member in party_manager.get_party_members(party_name) if member.key.lower() == target_name.lower()),
+            None,
+        )
+        if not target:
+            self.caller.msg(f"{target_name} is not in your party.")
+            return
+
+        # Promote the target to leader
+        party["leader_id"] = target.id
+        self.caller.msg(f"|gYou have promoted {target.key} to the leader of the party.|n")
+        target.msg(f"|gYou have been promoted to the leader of the party '{party_name}' by {self.caller.key}.|n")
+
+        # Notify remaining members
+        for member in party_manager.get_party_members(party_name):
+            if member != target and member != self.caller:
+                member.msg(f"|y{target.key} has been promoted to the leader of the party by {self.caller.key}.|n")
+
+    def party_disband(self):
+        """Handle disbanding a party."""
+        if not self.caller.db.party:
+            self.caller.msg("You are not in a party.")
+            self.caller.msg(f"Usage: party <create||invite|promote> [arguments]")
+            return
+
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+        
+        # Retrieve the party
+        party_name = self.caller.db.party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg(f"The party '{party_name}' does not exist.")
+            return
+
+        # Check if the caller is the leader or has appropriate permissions
+        if party["leader_id"] != self.caller.id:
+            self.caller.msg("Only the party leader can disband the party.")
+            return
+
+        # Notify all members and disband the party
+        members = party_manager.get_party_members(party_name)
+        for member in members:
+            member.msg(f"|rThe party '{party_name}' has been disbanded.|n")
+            member.db.party = None
+
+        # Remove the party from the PartyManager
+        party_manager.remove_party(party_name)
+        self.caller.msg(f"|gYou have disbanded the party '{party_name}'.|n")
+
+    def party_chat(self, message):
+        """
+        Send a chat message to all members of the caller's party.
+        """
+        if not message:
+            self.caller.msg("You must provide a message to send to your party.")
+            return
+
+        # Ensure the caller is in a party
+        party_name = self.caller.db.party
+        if not party_name:
+            self.caller.msg("You are not in a party.")
+            self.caller.msg(f"Usage: party <create||invite|promote> [arguments]")
+            return
+
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+
+        # Retrieve the party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg("Your party no longer exists.")
+            return
+
+        # Get all party members
+        members = party_manager.get_party_members(party_name)
+
+        # Send the message to all party members
+        for member in members:
+            member.msg(f"|c[Party] {self.caller.key}:|n {message}")
+
+# Helper functions
+def display_party_status(character):
+    """
+    Display the status of the party the character belongs to.
+
+    Args:
+        character (Object): The character whose party status to display.
+
+    Returns:
+        str: A formatted string containing the party status table.
+    """
+    party_name = character.db.party
+    if not party_name:
+        return "You are not in a party. \nUsage: party <create||invite|promote> [arguments]"
+
+    # Access the PartyManager
+    party_manager = search_script("party_manager").first()
+    if not party_manager:
+        return "Error: Party manager is not available."
+
+    party = party_manager.get_party(party_name)
+    if not party:
+        return "Your party could not be found. It may have been disbanded."
+
+    # Resolve party members
+    member_ids = party["member_ids"]
+    members = ObjectDB.objects.filter(id__in=member_ids)
+    if not members:
+        return f"The party '{party_name}' has no members."
+
+    # Build the table (same as before)
+    table = evtable.EvTable("|cMember|n", "|cHealth|n", "|cRole|n", border="cells")
+    for member in members:
+        if not member:
+            continue
+        hp = getattr(member, "hp", 0)
+        hp_max = getattr(member, "hp_max", 100)
+        health_meter = display_meter(hp, hp_max, length=20, show_values=True)
+        role = "|yLeader|n" if member.id == party["leader_id"] else "|wMember|n"
+        table.add_row(member.key, health_meter, role)
+
+    return f"|cParty: {party_name}|n\n{str(table)}"
+
+class CmdParties(MuxCommand):
+    """
+    Display a list of all active parties and their members, or disband a party.
+
+    Usage:
+        parties
+        parties disband <party_name>
+    """
+    key = "parties"
+    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
+
+
+    def func(self):
+        args = self.args.strip().split(None, 1)
+
+        # Handle subcommands
+        if args and args[0].lower() == "disband":
+            party_name = args[1].strip() if len(args) > 1 else None
+            self.disband_party(party_name)
+            return
+
+        # Default: Show active parties
+        self.display_active_parties()
+
+    def display_active_parties(self):
+        """Display a list of all active parties."""
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+
+        # Retrieve all active parties
+        parties = party_manager.db.parties
+        if not parties:
+            self.caller.msg("There are currently no active parties.")
+            return
+
+        # Prepare the table
+        table = evtable.EvTable("|cParty Name|n", "|cLeader|n", "|cMembers|n", border="cells")
+
+        for party_name, party_data in parties.items():
+            # Get leader and members
+            leader = self.resolve_object_by_id(party_data["leader_id"])
+            members = [
+                self.resolve_object_by_id(member_id)
+                for member_id in party_data["member_ids"]
+            ]
+
+            # Format member names
+            member_names = ", ".join(member.key for member in members if member)
+            leader_name = leader.key if leader else "Unknown"
+
+            # Add row to the table
+            table.add_row(party_name, leader_name, member_names)
+
+        # Display the table
+        self.caller.msg("|cActive Parties:|n")
+        self.caller.msg(str(table))
+
+    def disband_party(self, party_name):
+        """Handle disbanding a party."""
+        if not party_name:
+            self.caller.msg("You must specify the name of the party to disband.")
+            return
+
+        # Access the PartyManager
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            self.caller.msg("Error: Party manager is not available.")
+            return
+
+        # Retrieve the party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.caller.msg(f"The party '{party_name}' does not exist.")
+            return
+
+        # Check if the caller is the leader or has appropriate permissions
+        #if party["leader_id"] != self.caller.id and not self.caller.locks.check("perm", "Admin"):
+        #    self.caller.msg("Only the party leader or an administrator can disband the party.")
+        #    return
+
+        # Notify all members and disband the party
+        members = party_manager.get_party_members(party_name)
+        for member in members:
+            member.msg(f"|rThe party '{party_name}' has been disbanded.|n")
+            member.db.party = None
+
+        # Remove the party from the PartyManager
+        party_manager.remove_party(party_name)
+        self.caller.msg(f"|gYou have disbanded the party '{party_name}'.|n")
+
+    def resolve_object_by_id(self, obj_id):
+        """
+        Resolve an object by its ID.
+
+        Args:
+            obj_id (int): The ID of the object.
+
+        Returns:
+            Object or None: The resolved object or None if not found.
+        """
+        return ObjectDB.objects.filter(id=obj_id).first()
+
+class SUCharacterCmdSet(CmdSet):
+    """
+    Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
+
+    """
+    key = "SUCharacter"
+
+    def at_cmdset_creation(self):
+        self.add(CmdWieldOrWear())
+        self.add(CmdRemove())
+        self.add(CmdGive())
+        self.add(CmdTalk())
+        self.add(CmdScore())
+        self.add(CmdRest())
+        self.add(CmdLook())
+        self.add(CmdInventory())
+        self.add(CmdRestore())
+        self.add(CmdParty())
+        self.add(CmdParties())

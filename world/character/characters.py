@@ -7,6 +7,7 @@ from evennia.objects.objects import DefaultCharacter
 from evennia.typeclasses.attributes import AttributeProperty
 from evennia.utils.logger import log_trace
 from evennia.utils.utils import lazy_property
+from evennia.objects.models import ObjectDB
 
 from world.utils.rules import dice
 from world.character.equipment import EquipmentError, EquipmentHandler
@@ -154,7 +155,7 @@ class LivingMixin:
 
         if hasattr(self, "is_pc") and self.is_pc:
             if SUCharacter.add_xp(self, int(SUMob.get_xp_value(defeated_enemy))):
-                self.level_up("strength", "dexterity", "constitution")
+                self.level_up("strength", "dexterity", "intelligence")
 
 class SUCharacter(LivingMixin, DefaultCharacter):
     """
@@ -201,6 +202,74 @@ class SUCharacter(LivingMixin, DefaultCharacter):
     @property
     def armor(self):
         return self.equipment.armor
+
+    def at_object_creation(self):
+        """
+        Called only when first created.
+
+        """
+        super().at_object_creation()
+        self.db.party = None  # Reference to the party this character belongs to
+
+    #def at_disconnect(self):
+    def at_pre_unpuppet(self):
+        """
+        Hook called when the character disconnects (quits).
+        """
+        print(f"{self.key} has disconnected.")
+        # Check if the character is part of a party
+        party_name = self.db.party
+        if not party_name:
+            return  # Not in a party, nothing to do
+
+        # Access the PartyManager
+        from evennia import search_script
+        party_manager = search_script("party_manager").first()
+        if not party_manager:
+            return  # PartyManager not available, can't handle disconnection
+
+        # Retrieve the party
+        party = party_manager.get_party(party_name)
+        if not party:
+            self.db.party = None  # Party doesn't exist, clear the reference
+            return  # Party doesn't exist, nothing to do
+
+        # Remove the character from the party
+        self.db.party = None  # Clear party reference for the disconnected member
+
+        if party["leader_id"] == self.id and len(party["member_ids"]) > 1:
+            # If the leader is leaving and there are remaining members
+            remaining_members = [member for member in party["member_ids"] if member != self.id]
+            new_leader_id = remaining_members[0]  # Set the first member as the new leader
+            new_leader = ObjectDB.objects.get(id=new_leader_id)  # Retrieve the new leader object
+            party["leader_id"] = new_leader.id
+            new_leader.msg(f"|yYou are now the leader of the party '{party['name']}'.|n")
+        else:
+            # If the character is not the leader, just remove them from the party
+            if party_manager.remove_member_from_party(self, party_name):
+                self.msg(f"You have left the party '{party_name}'.")
+                remaining_members = party_manager.get_party_members(party_name)
+
+        """Remove a character from the PartyManager's list of members."""
+        if self.id in party["member_ids"]:
+            party["member_ids"].remove(self.id)
+            self.msg(f"You have left the party '{party_name}'.")
+        
+        # Notify remaining party members
+        remaining_members = party_manager.get_party_members(party_name)
+        for member in remaining_members:
+            member.msg(f"|y{self.key} has left the party '{party_name}' due to disconnection.|n")
+
+        # Disband the party if no members remain
+        if not remaining_members:
+            party_manager.remove_party(party_name)
+            self.msg(f"The party '{party_name}' has been disbanded.")
+
+       # Reassign leadership if the disconnecting member was the leader
+        if party["leader_id"] == self.id:
+            new_leader = remaining_members[0]
+            party["leader_id"] = new_leader.id
+            new_leader.msg(f"|yYou are now the leader of the party '{party_name}'.|n")
 
     def at_pre_move(self, destination, **kwargs):
         """
@@ -365,6 +434,7 @@ class SUCharacter(LivingMixin, DefaultCharacter):
 
         # update hp
         self.hp_max = max(self.hp_max + 1, dice.roll(f"{self.level}d8"))
+        self.msg(f"|yCongratulations! You have leveled up to Level {self.level}!|n")
 
     def update_prompt(self):
         """
@@ -381,3 +451,67 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         """
         if hasattr(self, "is_pc") and self.is_pc:
             self.update_prompt()
+
+class Party:
+    """
+    Represents a party of characters.
+    """
+
+    def __init__(self, leader, name):
+        self.leader_id = leader.id  # Store the leader's object ID
+        self.name = name  # The name of the party
+        self.member_ids = {leader.id}  # Store members by their object IDs
+
+    def add_member(self, member):
+        """
+        Add a new member to the party.
+
+        Args:
+            member (Object): The character to add.
+        """
+        if member.id not in self.member_ids:
+            self.member_ids.add(member.id)
+            return True
+        return False
+
+    def remove_member(self, member):
+        """
+        Remove a member from the party.
+
+        Args:
+            member (Object): The character to remove.
+        """
+        if member.id in self.member_ids:
+            self.member_ids.remove(member.id)
+            return True
+        return False
+
+    def get_members(self):
+        """
+        Get the actual objects of all members.
+
+        Returns:
+            list: A list of Character objects in the party.
+        """
+        return [char for char in self._resolve_ids(self.member_ids)]
+
+    def _resolve_ids(self, id_set):
+        """
+        Resolve a set of object IDs to actual objects.
+
+        Args:
+            id_set (set): A set of object IDs.
+
+        Returns:
+            list: The resolved objects.
+        """
+        return [obj for obj in ObjectDB.objects.filter(id__in=id_set)]
+
+    def disband(self):
+        """
+        Disband the party.
+        """
+        members = self.get_members()
+        for member in members:
+            member.db.party = None  # Clear the party reference for all members
+        self.member_ids.clear()
