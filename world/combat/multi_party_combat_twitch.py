@@ -353,6 +353,7 @@ class SUCombatTwitchHandler(SUCombatBaseHandler):
             combatant.msg("You have left combat.")
             del combatant.ndb.combathandler  # Remove reference to the combat handler
             if hasattr(combatant, "is_pc") and combatant.is_pc:
+                combatant.ndb.combat = False
                 SUCharacter.update_stats(combatant)
         self.db.combatants.clear()
         self.db.action_queue.clear()
@@ -455,6 +456,7 @@ class CmdAttack(_BaseTwitchCombatCommand):
         combathandler.queue_action({"key": "attack", "target": target, "dt": 1, "repeat": False}, self.caller)
         combathandler.msg(f"$You() $conj(attack) $You({target})!", self.caller)
         if hasattr(self.caller, "is_pc") and self.caller.is_pc:
+            self.caller.ndb.combat = True
             SUCharacter.update_stats(self.caller)
 
 class CmdUseItem(_BaseTwitchCombatCommand):

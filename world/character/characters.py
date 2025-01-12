@@ -61,7 +61,6 @@ class LivingMixin:
         """
         Called when being attacked / combat starts.
         """
-        #print(f"'{self.key}' called at_attacked")
         from world.combat.multi_party_combat_twitch import _BaseTwitchCombatCommand as Twitch
         
         target = attacker
