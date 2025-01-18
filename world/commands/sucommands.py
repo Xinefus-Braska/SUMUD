@@ -11,6 +11,7 @@ from world.utils.utils import get_obj_stats
 from world.character.characters import SUCharacter
 from evennia.utils import evform, evtable
 from evennia.contrib.rpg.health_bar import display_meter
+import time
 
 class CmdWieldOrWear(MuxCommand):
     """
@@ -1019,6 +1020,108 @@ class CmdParties(MuxCommand):
         """
         return ObjectDB.objects.filter(id=obj_id).first()
 
+class CmdListDungeons(MuxCommand):
+    """
+    List all active dungeons with their creators.
+
+    Usage:
+      dungeons
+    """
+    key = "dungeons"
+    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
+
+    def func(self):
+        dungeon_manager = search_script("dungeon_manager").first()
+        if not dungeon_manager:
+            self.caller.msg("Dungeon Manager is not active.")
+            return
+
+        active_dungeons = dungeon_manager.db.active_dungeons
+        current_time = time.time()
+        if not active_dungeons:
+            self.caller.msg("There are no active dungeons.")
+            return
+
+        # Create table
+        table = evtable.EvTable("Number","Entry Room", "Name", "Creator", "Expire")
+        # This loop is wrong. It iterates over the keys of the dictionary (ie. "rooms", "creator", "template_name"), which causes
+        # the three repitions of the same data. This is not what we want. We want to iterate over the dungeons themselves.
+        # You might need a second database entry to keep track of dungeons, with that db entry containing the current "active_dungeons" 
+        
+        for dungeon in active_dungeons:
+            dungeon_number = active_dungeons[dungeon].dbref
+            creator = active_dungeons[dungeon].db.dungeon_attributes["creator"]
+            creator_name = creator if creator else "Unknown"
+            template_name = active_dungeons[dungeon].db.dungeon_attributes["template_name"]
+            entry_room = active_dungeons[dungeon].db.dungeon_attributes["entry_room"]
+            start_time = active_dungeons[dungeon].db.dungeon_attributes["start_time"]
+            elapsed = current_time - start_time
+            expire = dungeon_manager.db.expire_time - elapsed
+            table.add_row(dungeon_number, entry_room, template_name, creator_name, expire)
+
+        #for dungeons in activedungeon_list_test:
+            #first_room = 0 
+            #creator = active_dungeons["creator"]
+            #template_name = active_dungeons["template_name"]
+            # Below should be a loop that finds the entry room and sets the entry room value accordingly.
+            #first_room = active_dungeons["rooms"][0]["key"]
+            
+            #for rooms in active_dungeons["rooms"]:
+             #   if "start" in rooms:
+              #      first_room = rooms
+            #self.caller.msg("0" + str(first_room))
+            
+            
+            #self.caller.msg("2" + str(template_name))
+            #self.caller.msg("3" + str(creator))
+
+        #for dungeon_data in active_dungeons["rooms"]: #.items():
+        #creator = active_dungeons["creator"]
+        #creator_name = creator if creator else "Unknown"
+        #template_name = active_dungeons["template_name"]
+        #entry_room = active_dungeons["entry_room"]
+        
+
+        self.caller.msg(f"Active Dungeons:\n{table}")
+
+class CmdDeleteDungeon(MuxCommand):
+
+    key="dd"
+    locks = "cmd:perm(Developer)"  # Only administrators or developers can use this
+
+
+    def func(self):
+
+        identifier = self.args.strip()
+        self.dungeon_delete(identifier)   
+
+    def dungeon_delete(self, identifier):
+
+        """Handle deleting a dungeon."""
+        if not identifier:
+            self.caller.msg("You must specify the identifier of the dungeon to delete.")
+            return
+
+        # Access the DungeonManager
+        dungeon_manager = search_script("dungeon_manager").first()
+        if not dungeon_manager:
+            self.caller.msg("Error: Dungeon manager is not available.")
+            return
+
+        # Retrieve the dungeon
+        # Has to be fixed to delete none dungeons
+        dungeon = dungeon_manager.get_dungeon_key(identifier)
+        if not dungeon:
+            self.caller.msg(f"The dungeon '{identifier}' does not exist.")
+            return
+
+        # Remove the dungeon from the DungeonManager
+        dungeon_manager.delete_dungeon(identifier)
+        self.caller.msg(f"|gYou have deleted the dungeon '{identifier}'.|n")
+
+        
+
+
 class SUCharacterCmdSet(CmdSet):
     """
     Groups all commands in one cmdset which can be added in one go to the DefaultCharacter cmdset.
@@ -1038,3 +1141,5 @@ class SUCharacterCmdSet(CmdSet):
         self.add(CmdRestore())
         self.add(CmdParty())
         self.add(CmdParties())
+        self.add(CmdListDungeons())
+        self.add(CmdDeleteDungeon())

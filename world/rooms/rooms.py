@@ -2,10 +2,12 @@
 from evennia.objects.objects import DefaultRoom
 
 from typeclasses.objects import ObjectParent
+from evennia.objects.models import ObjectDB 
+
 
 from copy import deepcopy
 
-from evennia import AttributeProperty, DefaultCharacter
+from evennia import AttributeProperty, DefaultCharacter, search_script
 from evennia.utils.utils import inherits_from
 
 CHAR_SYMBOL = "|w@|n"
@@ -84,6 +86,36 @@ class SURoom(DefaultRoom):
     #    """
     #    looker.execute_cmd("map")
     #    return ""
+
+class SUEntryRoom(SURoom):
+    """
+    A room that triggers dungeon generation when a character enters it.
+    """
+
+    def at_object_receive(self, obj, source_location, **kwargs):
+        """
+        Called when an object (e.g., a character) enters this room.
+        """
+        if obj.has_account:  # Ensure the object is a player character
+            sub_dungeon = self.db.sub_dungeon
+            if sub_dungeon:
+                # Get the DungeonManager script
+                dungeon_manager = search_script("dungeon_manager").first()
+                if dungeon_manager:
+                    # Check if this dungeon is already loaded for the player
+                    if dungeon_manager.check_dungeon(obj.name, sub_dungeon):
+                        # Generate the sub-dungeon
+                        dungeon_manager.generate_dungeon(
+                            template_name=sub_dungeon,
+                            creator=obj.name,
+                            connecting_room=self,
+                        )
+                        obj.msg(f"You feel a magical pull as the {sub_dungeon} materializes before you.")
+                else:
+                    obj.msg("There seems to be a glitch... no DungeonManager found.")
+            else:
+                obj.msg("This room feels strange, but nothing happens.")
+        super().at_object_receive(obj, source_location, **kwargs)
 
 class SUPvPRoom(SURoom):
     """

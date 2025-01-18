@@ -37,6 +37,11 @@ def at_server_start():
     if not search_script("party_manager"):
         from world.scripts.party import PartyManager
         PartyManager.create("party_manager")
+    
+    # Ensure the DungeonManager script exists
+    if not search_script("dungeon_manager"):
+        from world.scripts.dungeon import DungeonManager
+        DungeonManager.create("dungeon_manager")
 
 
 def at_server_stop():
