@@ -348,7 +348,7 @@ class CmdInventory(MuxCommand):
         backpack = self.caller.equipment.display_backpack()
         slot_usage = self.caller.equipment.display_slot_usage()
 
-        self.caller.msg(f"{loadout}\n{backpack}\nYou use {slot_usage} equipment slots.")
+        self.caller.msg(f"{backpack}")
 
 class CmdRestore(MuxCommand):
     """

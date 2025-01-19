@@ -135,6 +135,7 @@ MAX_NR_SIMULTANEOUS_PUPPETS = 3
 AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
 # BASE_ACCOUNT_TYPECLASS = 
 #CHARGEN_MENU = "world.character.chargen"
+BASE_ACCOUNT_TYPECLASS = "world.character.account.SUAccount"
 BASE_CHARACTER_TYPECLASS = "world.character.characters.SUCharacter"
 BASE_ROOM_TYPECLASS = "world.rooms.rooms.SURoom"
 BASE_EXIT_TYPECLASS = "world.rooms.suexits.SUExit"

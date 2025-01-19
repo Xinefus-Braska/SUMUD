@@ -1,10 +1,6 @@
 
 from evennia.objects.objects import DefaultRoom
 
-from typeclasses.objects import ObjectParent
-from evennia.objects.models import ObjectDB 
-
-
 from copy import deepcopy
 
 from evennia import AttributeProperty, DefaultCharacter, search_script
@@ -79,14 +75,6 @@ class SURoom(DefaultRoom):
         # vertically and have it come out right.
         return "  " + "\n  ".join("".join(line) for line in reversed(map_grid))
 
-    # appearance_template = '|c{name}{extra_name_info}\n|n{header}\n{desc}\n{exits}\n{characters}\n{things}\n{footer}\n'
-    #def get_display_header(self, looker, **kwargs):
-    #    """
-    #    Displays a minimap above the room description, if there is one.
-    #    """
-    #    looker.execute_cmd("map")
-    #    return ""
-
 class SUEntryRoom(SURoom):
     """
     A room that triggers dungeon generation when a character enters it.
@@ -131,3 +119,49 @@ class SUPvPRoom(SURoom):
         Customize footer of description.
         """
         return "|yNon-lethal PvP combat is allowed here!|n"
+
+class SUHouse(SURoom):
+    """
+    Room where character logs in.
+
+    """
+
+    allow_combat = AttributeProperty(False, autocreate=False)
+    allow_pvp = AttributeProperty(False, autocreate=False)
+
+    def get_display_footer(self, looker, **kwargs):
+        """
+        Customize footer of description.
+        """
+        return "|yThis is a House.|n"
+
+class SUArmoury(SURoom):
+    """
+    Room where character can access their stored items and currency.
+
+    """
+
+    allow_combat = AttributeProperty(False, autocreate=False)
+    allow_pvp = AttributeProperty(False, autocreate=False)
+
+    def get_display_footer(self, looker, **kwargs):
+        """
+        Customize footer of description.
+        """
+        return "|yThis is an Armoury.|n"
+
+class SURift(SURoom):
+    """
+    Room where characters can access other areas.
+
+    """
+
+    allow_combat = AttributeProperty(False, autocreate=False)
+    allow_pvp = AttributeProperty(False, autocreate=False)
+
+    def get_display_footer(self, looker, **kwargs):
+        """
+        Customize footer of description.
+        """
+        return "|yThis is a Rift|n"
+

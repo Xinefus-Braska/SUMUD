@@ -2,7 +2,6 @@
 Character class.
 
 """
-from evennia import create_object
 from evennia.objects.objects import DefaultCharacter
 from evennia.typeclasses.attributes import AttributeProperty
 from evennia.utils.logger import log_trace
@@ -215,21 +214,13 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         Use this to set up their home room.
         """
         super().at_pre_puppet(account)  # Call the parent method
-        
-        room_name = f"Home of {self.key}"
-        # Check if the character already has a home
-        if not str(self.home) == room_name:
-            # Create a unique room for the character
-            room = create_object("world.rooms.rooms.SURoom", key=room_name)
 
-            # Customize room description and attributes
-            room.db.desc = f"This is a cozy room belonging to {self.key}."
-
-            # Set the room as the character's home
-            self.home = room
-
-            # Notify the character
-            self.msg(f"A cozy home has been created for you: {room_name}")
+        # Get the account's shared rooms
+        if not self.home == account.db.house:
+            if account:
+                self.home = account.db.house  # Set the home to the account's house
+                self.db.armoury = account.db.armoury  # Link to the Armory
+                self.db.rift = account.db.rift  # Link to the Rift
 
         # Move the character to their home at every login
         self.location = self.home
