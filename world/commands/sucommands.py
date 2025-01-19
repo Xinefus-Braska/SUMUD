@@ -1043,44 +1043,17 @@ class CmdListDungeons(MuxCommand):
             return
 
         # Create table
-        table = evtable.EvTable("Number","Entry Room", "Name", "Creator", "Expire")
-        # This loop is wrong. It iterates over the keys of the dictionary (ie. "rooms", "creator", "template_name"), which causes
-        # the three repitions of the same data. This is not what we want. We want to iterate over the dungeons themselves.
-        # You might need a second database entry to keep track of dungeons, with that db entry containing the current "active_dungeons" 
-        
+        table = evtable.EvTable("Reference", "Name", "Creator", "Expire")
+         
         for dungeon in active_dungeons:
             dungeon_number = active_dungeons[dungeon].dbref
             creator = active_dungeons[dungeon].db.dungeon_attributes["creator"]
             creator_name = creator if creator else "Unknown"
             template_name = active_dungeons[dungeon].db.dungeon_attributes["template_name"]
-            entry_room = active_dungeons[dungeon].db.dungeon_attributes["entry_room"]
             start_time = active_dungeons[dungeon].db.dungeon_attributes["start_time"]
             elapsed = current_time - start_time
             expire = dungeon_manager.db.expire_time - elapsed
-            table.add_row(dungeon_number, entry_room, template_name, creator_name, expire)
-
-        #for dungeons in activedungeon_list_test:
-            #first_room = 0 
-            #creator = active_dungeons["creator"]
-            #template_name = active_dungeons["template_name"]
-            # Below should be a loop that finds the entry room and sets the entry room value accordingly.
-            #first_room = active_dungeons["rooms"][0]["key"]
-            
-            #for rooms in active_dungeons["rooms"]:
-             #   if "start" in rooms:
-              #      first_room = rooms
-            #self.caller.msg("0" + str(first_room))
-            
-            
-            #self.caller.msg("2" + str(template_name))
-            #self.caller.msg("3" + str(creator))
-
-        #for dungeon_data in active_dungeons["rooms"]: #.items():
-        #creator = active_dungeons["creator"]
-        #creator_name = creator if creator else "Unknown"
-        #template_name = active_dungeons["template_name"]
-        #entry_room = active_dungeons["entry_room"]
-        
+            table.add_row(dungeon_number, template_name, creator_name, int(expire))
 
         self.caller.msg(f"Active Dungeons:\n{table}")
 
