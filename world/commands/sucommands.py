@@ -1092,6 +1092,31 @@ class CmdDeleteDungeon(MuxCommand):
         dungeon_manager.delete_dungeon(identifier)
         self.caller.msg(f"|gYou have deleted the dungeon '{identifier}'.|n")
 
+class CmdHome(MuxCommand):
+    """
+    move to your character's home location
+
+    Usage:
+      home
+
+    Teleports you to your home location.
+    """
+
+    key = "home"
+    #locks = "cmd:perm(home) or perm(Builder)"
+    arg_regex = r"$"
+    
+    def func(self):
+        """Implement the command"""
+        caller = self.caller
+        home = caller.home
+        if not home:
+            caller.msg("You have no home!")
+        elif home == caller.location:
+            caller.msg("You are already home!")
+        else:
+            caller.msg("There's no place like home ...")
+            caller.move_to(home, move_type="teleport")
         
 
 
@@ -1116,3 +1141,4 @@ class SUCharacterCmdSet(CmdSet):
         self.add(CmdParties())
         self.add(CmdListDungeons())
         self.add(CmdDeleteDungeon())
+        self.add(CmdHome())
