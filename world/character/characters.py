@@ -213,17 +213,19 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         """
         Use this to set up their home room.
         """
-        super().at_pre_puppet(account)  # Call the parent method
+        if not account.db.house:
+            account.at_account_creation()
 
         # Get the account's shared rooms
-        if not self.home == account.db.house:
-            if account:
+        if not account.db.house == self.home:
                 self.home = account.db.house  # Set the home to the account's house
                 self.db.armoury = account.db.armoury  # Link to the Armory
                 self.db.rift = account.db.rift  # Link to the Rift
 
         # Move the character to their home at every login
         self.location = self.home
+
+        super().at_pre_puppet(account)  # Call the parent method
 
     def at_pre_unpuppet(self):
         """
