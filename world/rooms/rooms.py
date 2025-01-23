@@ -5,6 +5,8 @@ from copy import deepcopy
 
 from evennia import AttributeProperty, DefaultCharacter, search_script
 from evennia.utils.utils import inherits_from
+from evennia.utils.evmenu import EvMenu
+from world.character.random import GenerateMob
 
 CHAR_SYMBOL = "|w@|n"
 CHAR_ALT_SYMBOL = "|w>|n"
@@ -99,6 +101,8 @@ class SUEntryRoom(SURoom):
                             connecting_room=self,
                         )
                         obj.msg(f"You feel a magical pull as the {sub_dungeon} materializes before you.")
+                        if sub_dungeon not in obj.db.completed_dungeons:
+                            obj.db.completed_dungeons.append(sub_dungeon)
                 else:
                     obj.msg("There seems to be a glitch... no DungeonManager found.")
             else:
@@ -165,3 +169,149 @@ class SURift(SURoom):
         """
         return "|yThis is a Rift|n"
 
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.menu = None  # Placeholder for the menu property.
+
+    def at_object_receive(self, obj, source_location, **kwargs):
+        super().at_object_receive(obj, source_location, **kwargs)
+
+        if obj.has_account:  # Ensure the object is a player character
+            obj.msg("You feel the chaotic energy of the Rift swirling around you.")
+            self.start_menu(obj)
+
+    def start_menu(self, character):
+        """
+        Starts a menu for dungeon selection and generation.
+        """
+        completed_dungeons = character.db.completed_dungeons or []
+        available_templates = self.get_available_dungeon_templates(completed_dungeons) if completed_dungeons else ["main_dungeon"]
+        if not available_templates:
+            character.msg("Something wrong.")
+            return
+
+        def list_node(caller):
+            """
+            Initial menu node.
+            """
+            text = "Select a dungeon to generate and enter:\n"
+            options = [
+                {
+                    "key": str(index + 1),
+                    "desc": available_templates[index],
+                    "goto": ("node_generate_dungeon", {"template": template}),
+                }
+                for index, template in enumerate(available_templates)
+            ]
+            return text, options
+
+        def node_generate_dungeon(caller, raw_input, **kwargs):
+            """
+            Node to generate the dungeon.
+            """
+            sub_dungeon = kwargs.get("template")
+            
+            if sub_dungeon:
+                # Get the DungeonManager script
+                dungeon_manager = search_script("dungeon_manager").first()
+                if dungeon_manager:
+                    # Check if this dungeon is already loaded for the player
+                    if dungeon_manager.check_dungeon(caller.name, sub_dungeon):
+                        # Generate the sub-dungeon
+                        dungeon = dungeon_manager.generate_dungeon(
+                            template_name=sub_dungeon,
+                            creator=caller.name,
+                            connecting_room=self,
+                        )
+                        caller.msg(f"You feel a magical pull as the {sub_dungeon} materializes before you.")
+                        if sub_dungeon not in caller.db.completed_dungeons:
+                            caller.db.completed_dungeons.append(sub_dungeon)
+                        return None
+                else:
+                    caller.msg("There seems to be a glitch... no DungeonManager found.")
+            else:
+                caller.msg("This room feels strange, but nothing happens.")
+
+            return "Failed to generate the dungeon. Try again later.", None
+
+        EvMenu(
+            character,
+            {
+                "list_node": list_node,
+                "node_generate_dungeon": node_generate_dungeon,
+            },
+            startnode="list_node",
+        )
+
+    def get_available_dungeon_templates(self, completed_dungeons):
+        """
+        Get a list of dungeon templates available to the character.
+
+        Args:
+            completed_dungeons (list): A list of completed dungeon template identifiers.
+
+        Returns:
+            list: A list of available dungeon templates.
+        """
+        dungeon_manager = search_script("dungeon_manager").first()
+
+        if not dungeon_manager:
+            print("No Dungeon Manager found.")
+            return []
+
+        templates = dungeon_manager.get_templates()
+        #print(f"All Templates: {templates}")
+        available_templates = list(set(templates) & set(completed_dungeons)) #[template for template in templates if template.get("key") not in completed_dungeons]
+        #print(f"Available Templates: {available_templates}")
+        return available_templates
+
+
+class SUDungeonRoom(SURoom):
+    """
+    Room that is part of a dungeon.
+
+    """
+
+    allow_combat = AttributeProperty(True, autocreate=False)
+    allow_pvp = AttributeProperty(False, autocreate=False)
+    allow_death = AttributeProperty(True, autocreate=False)
+
+    def at_object_creation(self):
+        """
+        Set the `not_clear` tag on the room. This is removed when the room is
+        'cleared', whatever that means for each room.
+
+        We put this here rather than in the room-creation code so we can override
+        easier (for example we may want an empty room which auto-clears).
+
+        """
+        self.tags.add("not_clear", category="dungeon_room")
+
+    def clear_room(self):
+        self.tags.remove("not_clear", category="dungeon_room")
+
+    @property
+    def is_room_clear(self):
+        return not bool(self.tags.get("not_clear", category="dungeon_room"))
+
+    def get_display_footer(self, looker, **kwargs):
+        """
+        Customize footer of description.
+        """
+        return "|rThis is a Dungeon Room.|n"
+    
+    def at_object_receive(self, obj, source_location, **kwargs):
+        """
+        Called when an object (e.g., a character) enters this room.
+        First thing to happen when entering the room is to check if the room is clear. 
+        """
+        if obj.has_account:  # Ensure the object is a player character
+            if not self.is_room_clear:
+                # Generate the enemies for this room.
+                #GenerateMob.generate_mob(self, obj)
+                obj.msg("Here come the enemies!")
+                # This will be a function to either generate mobs or not. 
+                self.clear_room()
+
+
+        super().at_object_receive(obj, source_location, **kwargs)

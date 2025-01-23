@@ -85,7 +85,7 @@ class DungeonManager(DefaultScript):
         for room_num in range(0, len(template["rooms"])):
             room_data = template["rooms"][room_num]
             
-            room_class = "world.rooms.rooms.SUEntryRoom" if "sub_dungeon" in room_data else "world.rooms.rooms.SURoom"
+            room_class = "world.rooms.rooms.SUEntryRoom" if "sub_dungeon" in room_data else "world.rooms.rooms.SUDungeonRoom"
             # Using key=0 to force key to be the DB identifier, this will help later
             room = create_object(room_class, key=0)
             room.db.desc = room_data["desc"]
@@ -147,7 +147,9 @@ class DungeonManager(DefaultScript):
             "dungeon_num" : dungeon_rooms[0].key,
             "start_time" : time.time(),
         }
-
+        character = ObjectDB.objects.get(db_key=creator)
+        if template_name not in character.db.completed_dungeons:
+            character.db.completed_dungeons.append(template_name)
         self.db.active_dungeons[dungeon.db.dungeon_attributes["dungeon_num"]] = dungeon
 
     def get_dungeon_key(self, identifier):
@@ -206,6 +208,15 @@ class DungeonManager(DefaultScript):
         obj.delete()
         del self.db.active_dungeons[name]
 
+    def get_templates(self):
+        """
+        Returns a list of all available dungeon template keys in DUNGEON_TEMPLATES.
+        
+        Returns:
+            list: A list of dungeon template names (keys) in DUNGEON_TEMPLATES.
+        """
+        return list(DUNGEON_TEMPLATES.keys())
+    
 DUNGEON_TEMPLATES = {
     "main_dungeon": {
         "description": "A mysterious main dungeon with an entry to a deeper sub-dungeon.",
@@ -227,7 +238,7 @@ DUNGEON_TEMPLATES = {
             {"from": "Sub-Dungeon Entrance", "to": "Deep Chamber", "key": "east", "aliases1": "e", "reverse_key": "west", "aliases2": "w", "two_way": True},
         ],
     },
-     "start_1_1": {
+    "start_1_1": {
         "description": "A vast, mysterious dungeon with a gateway to a deeper realm.",
         "rooms": [
             {"key": "Ancient Hallway", "desc": "An old hallway with flickering torchlight.", "start": True},

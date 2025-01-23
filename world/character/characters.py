@@ -183,6 +183,13 @@ class SUCharacter(LivingMixin, DefaultCharacter):
     xp = AttributeProperty(default=0)
     xp_per_level = 1000
 
+    @lazy_property
+    def completed_dungeons(self):
+        """
+        Get a list of completed dungeons.
+        """
+        return self.db.completed_dungeons or []
+
     @lazy_property 
     def equipment(self):
         """Allows to access equipment like char.equipment.worn"""
@@ -208,6 +215,7 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         """
         super().at_object_creation()
         self.db.party = None  # Reference to the party this character belongs to
+        self.db.completed_dungeons = ["main_dungeon"]  # List of completed dungeons
 
     def at_pre_puppet(self, account, session=None):
         """
@@ -467,6 +475,25 @@ class SUCharacter(LivingMixin, DefaultCharacter):
         if hasattr(self, "is_pc") and self.is_pc:
             self.update_prompt()
 
+    def get_available_dungeon_templates(self, completed_dungeons):
+        """
+        Get a list of dungeon templates available to the character.
+
+        Args:
+            completed_dungeons (list): A list of completed dungeon template identifiers.
+
+        Returns:
+            list: A list of available dungeon templates.
+        """
+        dungeon_manager = self.search("dungeon_manager", global_search=True)
+
+        if not dungeon_manager:
+            return []
+
+        templates = dungeon_manager.get_templates()
+        available_templates = [template for template in templates if template.get("id") not in completed_dungeons]
+        return available_templates
+    
 class Party:
     """
     Represents a party of characters.
