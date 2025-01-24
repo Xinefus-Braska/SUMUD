@@ -127,12 +127,12 @@ class DungeonManager(DefaultScript):
         if connecting_room:
             sub_dungeon_entry = dungeon_rooms[0]
             create_object("world.rooms.suexits.SUExit",
-                          key="portal",
+                          key=template_name, #"portal"
                           aliases="p",
                           location=connecting_room,
                           destination=sub_dungeon_entry)
             create_object("world.rooms.suexits.SUExit",
-                          key="portal",
+                          key="exit", #"portal"
                           aliases="p",
                           location=sub_dungeon_entry,
                           destination=connecting_room)
